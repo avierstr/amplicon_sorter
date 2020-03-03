@@ -2,6 +2,7 @@
 Sorts amplicons from Nanopore sequencing data based on similarity, creates groups with highly similar sequences and create the consensus sequence for each group of sequences.
 
 (Only works on Linux because it uses multiprocessing)
+
 (This is a work in progress, but already producing good enough results to share the script.)
 
 Requirements:
