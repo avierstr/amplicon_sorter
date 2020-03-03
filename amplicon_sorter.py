@@ -80,7 +80,7 @@ def get_arguments():
     parser = argparse.ArgumentParser(description='AmpliconSorter: Sort amplicons based on identity ' 
                                      'and saves them in different files including the consensus.' )
     parser.add_argument('-i', '--input', required=True, 
-                        help='Input file in fastq of fasta format')
+                        help='Input file in fastq format')
     parser.add_argument('-min', '--minlength', type = int, required=False, default=300,
                         help='Minimum readlenght to process.  Default=300')
     parser.add_argument('-max', '--maxlength', type = int, required=False, 
@@ -155,7 +155,7 @@ def figure(readlengthlist):
              horizontalalignment='right', transform=plt.gca().transAxes)
     
     plt.hist(readlengthlist, bins='auto', color='green')
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.0F}'.format(x/1000))) # divide read length by 1000
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.1F}'.format(x/1000))) # divide read length by 1000
     plt.savefig(figname, format='pdf', dpi=300)
 
     ax2 = plt.subplot(2,1,2)
@@ -163,7 +163,7 @@ def figure(readlengthlist):
     plt.xlabel('Read length (Kb)')
    
     plt.hist(readlengthlist, log=True, bins='auto', color='green')
-    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.0F}'.format(x/1000))) # divide read length by 1000
+    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.1F}'.format(x/1000))) # divide read length by 1000
 #    plt.legend(loc='center right')
     plt.tight_layout()
     plt.savefig(figname, format='pdf', dpi=300)
