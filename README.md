@@ -16,11 +16,17 @@ Requirements:
 ### Options:
 
 `-i, --input`: Input file in fastq format
+
 `-min, --minlength`: Minimum readlenght to process.  Default=300
+
 `-max', '--maxlength`: Maximum readlenght to process.  Default=No limit
+
 `-maxr', '--maxreads`: Maximum number of reads to process. Default=10000
+
 `-np', '--nprocesses`: Number of processors to use. Default=1
+
 `-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=50.0
+
 `-ss', '--similar_species`: Similarity to sort to species level (value between 50 and 100). Default=85.0
 
 ### How it works (in short):
@@ -35,6 +41,7 @@ Requirements:
 ### Command examples:
 
 `python3 amplicon_sorter.py -i inputset1.fastq` : process file with default settings.
+
 `python3 amplicon_sorter.py -i inputset1.fastq --similar_species 80 --nprocesses 8`: process file on 8 cores with allowing the similarity between sequences of the same gene as low as 80% 
 
 ### My experience so far:
@@ -47,5 +54,4 @@ Requirements:
 - fastq files as output
 - options to create read length histogram only
 - option to filter to gene groups only and later start from there to play with the `--similar_species` option
-
 
