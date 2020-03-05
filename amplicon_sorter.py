@@ -22,7 +22,6 @@ from threading import Thread
 from Levenshtein import distance as l_distance
 from Levenshtein import median as l_median
 import os
-import sys
 import time
 import glob
 import pickle
@@ -76,11 +75,16 @@ def get_arguments():
             raise argparse.ArgumentTypeError("Argument must be > " + str(50.0) + " and < " + str(100.0))
         return f
 
+    def valid_file(param):  # check if input file ends on .fastq or .fasta
+        base, ext = os.path.splitext(param)
+        if ext.lower() not in ('.fasta', '.fastq'): 
+            raise argparse.ArgumentTypeError('File extension must be .fastq or .fasta') 
+        return param
         
     parser = argparse.ArgumentParser(description='AmpliconSorter: Sort amplicons based on identity ' 
                                      'and saves them in different files including the consensus.' )
-    parser.add_argument('-i', '--input', required=True, 
-                        help='Input file in fastq format')
+    parser.add_argument('-i', '--input', required=True, type = valid_file,
+                        help='Input file in fastq or fasta format')
     parser.add_argument('-min', '--minlength', type = int, required=False, default=300,
                         help='Minimum readlenght to process.  Default=300')
     parser.add_argument('-max', '--maxlength', type = int, required=False, 
@@ -93,6 +97,8 @@ def get_arguments():
                         help='Similarity to sort genes in groups (value between 50 and 100). Default=50.0')
     parser.add_argument('-ss', '--similar_species', type = range_limited_float_type, required=False, default=85.0 ,
                         help='Similarity to sort to species level (value between 50 and 100). Default=85.0')
+    parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
+                        help='Save the results also in fastq files (fastq files will not contain the consensus sequence)')
 
     args = parser.parse_args()
     return args
@@ -144,7 +150,7 @@ def figure(readlengthlist):
         pass
     plt.figure(1, figsize=[5,5])
     ax = plt.subplot(2,1,1)
-    figname = infile.replace('.fastq', '_total_outputfig.pdf')
+    figname = infile.replace('.fastq', '_total_outputfig.pdf').replace('.fasta', '_total_outputfig.pdf')
     plt.ylabel('Number of reads')
     plt.title('Read length histogram') 
     plt.text(0.95, 0.55, 'Total yield (Gb): ' + str(round((bases/1000000000),2)) + 
@@ -178,6 +184,14 @@ def read_file(self):
     -read all files from a folder
     -input can be fastq or fasta, autodetect file type
     '''
+    global fileformat
+    with open(infile, 'r') as inf: # check the fileformat
+        line = inf.readline()
+        if line[0] == '>':
+            fileformat = 'fasta'
+        elif line[0] == '@':
+            fileformat = 'fastq'
+            
     minlength = args.minlength
     maxlength = args.maxlength
     maxreads = args.maxreads
@@ -190,7 +204,7 @@ def read_file(self):
     with open (logfile, 'w') as lf:
         print('Reading ' + self, file = lf)
     inputfile = open(self, "r")
-    for record in SeqIO.parse(inputfile, "fastq"):
+    for record in SeqIO.parse(inputfile, fileformat):
         ti += 1
         readlengthlist.append(len(record.seq))
         # add name, sequence, index number to list
@@ -466,7 +480,7 @@ def update_list(tempfile):
         grouped_seq += len(x)  
         
     for j, x in enumerate(grouplist):
-        outputfile = infile.replace('.fastq', '_') + str(j) + '.group'
+        outputfile = infile.replace('.fastq', '_').replace('.fasta', '_') + str(j) + '.group'
         with open(outputfile, 'a') as outputf:
             for y in x:
                 outputf.write(str(y) + '\n')
@@ -480,11 +494,12 @@ def update_list(tempfile):
             if str(index) in n:  # if it belongs to a group
                 comparelist[o][2] = i
     comparelist2 = [i for i in comparelist if i[2] == 'u'] # only keep those that not belong to group
-    outputfile = infile.replace('.fastq', '_unique.group')
-    with open(outputfile, 'a') as outputf:
-        for x in comparelist2:
-            outputf.write(str(x[3]) + '\n')
-    print('  ' + outputfile + ' contains ' + str(len(comparelist2)) + ' sequences (' + str(round(len(comparelist2)*100/num_seq, 2)) + '%)')
+    if len(comparelist2) > 0:
+        outputfile = infile.replace('.fastq', '_unique.group').replace('.fasta', '_unique.group')
+        with open(outputfile, 'a') as outputf:
+            for x in comparelist2:
+                outputf.write(str(x[3]) + '\n')
+        print('  ' + outputfile + ' contains ' + str(len(comparelist2)) + ' sequences (' + str(round(len(comparelist2)*100/num_seq, 2)) + '%)')
     
     # reset the comparelist
     for i,[w,x,y,z] in enumerate(comparelist):
@@ -584,26 +599,33 @@ def read_indexes(group_filename): # read index numbers from the the input file
 def filter_seq(group_filename, grouplist, indexes):
     # filter sequences: put the sequences with high similarity in separate files.
     # Sequences of the same species with the same gene should be in one file.
+    global fileformat
+    if fileformat == 'fasta': # if the inputfile was fasta, it is not possible to 
+        fq = False            # save results in fastq format
+    else:
+        fq = args.save_fastq # check if it needs to be saved in fastq format
     MYLOCK = Lock()
     print('Writing sequences with high similarity in separate files')
     with open (logfile, 'a') as lf:
         print('\nWriting sequences with high similarity in separate files', file = lf)
     global comparelist #, indexes #, grouplist
     MYLOCK.acquire()
+    if fq == True:
+        record_dict = SeqIO.index(infile, 'fastq')  # index the input fastq file
     for rec_id, seq, scores, index in comparelist:
         if str(index) in indexes:
-#                try:
-#                    seq_id = scores[0]
-#                except TypeError:
-#                    seq_id = scores
             if scores == 'u':  # sequences that have no similarity with others
                  outputfile = group_filename.replace('.group', '_') + 'unique.fasta' # unique sequences
+                 outputfilefq = group_filename.replace('.group', '_') + 'unique.fastq' # unique sequences
             else:
                  outputfile = group_filename.replace('.group', '_') + str(scores) + '.fasta'
+                 outputfilefq = group_filename.replace('.group', '_') + str(scores) + '.fastq'
             with open(outputfile, 'a') as outputf:
                 x = str(seq)
                 outputf.write('>' + str(index)  + '\n' + x + '\n')
-#                    SeqIO.write(record, outputf, 'fastq')
+                if fq == True:
+                    with open(outputfilefq, 'a') as writer: 
+                        SeqIO.write(record_dict[rec_id], writer, 'fastq')
     MYLOCK.release()
     grouped_seq = 0 # number of sequences in grouplist  
     for x in grouplist:
@@ -612,7 +634,7 @@ def filter_seq(group_filename, grouplist, indexes):
                 grouped_seq += 1
                 
     consensusfilename = group_filename.replace('.group', '_consensussequences.fasta') # group consensusfile
-    consensusfile = infile.replace('.fastq', '_consensussequences.fasta') # total consensusfile
+    consensusfile = infile.replace('.fastq', '_consensussequences.fasta').replace('.fasta', '_consensussequences.fasta') # total consensusfile
     
     try:  # remove  file if exists
         os.remove(consensusfilename)
@@ -788,8 +810,9 @@ def consensus_direction(consensuslist): #  check if all sequences are in the sam
     return consensuslist
 #==============================================================================
 def sort_genes(): # read the input file and sort sequences according to gene
-    try:  # remove temporary file if exists
-        filename = infile.replace('.fastq', '_*')
+    # remove temporary file if exists
+    try:
+        filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
         for x in glob.glob(filename):
             os.remove(x)
         time.sleep(1)
@@ -869,6 +892,8 @@ def rest_reads(indexes, grouplist, group_filename):
     print(group_filename + '--> Comparing the rest of the sequences with the consensus sequences')
     print(group_filename + '----> similarity = ' + str(round(similar, 2)))
     process_consensuslist(indexes, grouplist, group_filename)
+                
+#                  
     comparelist, grouplist, templist = update_groups(group_filename, grouplist)
     min_similar = args.similar_species/100
     while similar >= min_similar: #0.85 is te laag
@@ -936,7 +961,7 @@ def sort_groups(): # read the gene groups and sort sequences according to specie
 #==============================================================================
 def sort(todoqueue): 
     global similar, comparelist
-    consensusfile = infile.replace('.fastq', '_consensussequences.fasta') # total consensusfile
+    consensusfile = infile.replace('.fastq', '_consensussequences.fasta').replace('.fasta', '_consensussequences.fasta') # total consensusfile
     try:  # remove  file if exists
         os.remove(consensusfile)
     except FileNotFoundError:
@@ -968,6 +993,8 @@ def sort(todoqueue):
 - consensussequenties met elkaar vergelijken om groepen samen te gooien
 - optie saven in fasta of fastq
 - optie om afzonderlijk in groepen te splitten en nadien afzonderlijk in species te splitten
+- oplossing zoeken voor extentie inputfiles (fasta, fastq, fq, fa, ...)
+- option om op te slaan in een subfolder
 
 """
         
@@ -978,6 +1005,6 @@ def sort(todoqueue):
 if __name__ == '__main__':
     args = get_arguments()
     infile = args.input
-    logfile = infile.replace('.fastq', '.log')
+    logfile = infile.replace('.fastq', '.log').replace('.fasta', '.log')
     sort_genes()
     sort_groups()
