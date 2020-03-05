@@ -16,7 +16,7 @@ Requirements:
 
 ### Options:
 
-`-i, --input`: Input file in fastq format
+`-i, --input`: Input file in fastq or fasta format (auto-detect).  Make sure the inputfile is named as .fasta or .fastq because it replaces the extension in parts of the script.   
 
 `-min, --minlength`: Minimum readlenght to process.  Default=300
 
@@ -29,6 +29,8 @@ Requirements:
 `-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=50.0
 
 `-ss', '--similar_species`: Similarity to sort to species level (value between 50 and 100). Default=85.0
+
+`-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
 
 ### How it works (in short):
 
@@ -51,8 +53,12 @@ Requirements:
 - 10000 reads (`--maxreads`) on 12 cores takes several hours to finish.  
 
 ### Todo:
-- fasta files as input
-- fastq files as output
+- random selection of part of input sequences
 - options to create read length histogram only
 - option to filter to gene groups only and later start from there to play with the `--similar_species` option
+
+### Release notes: 
+2020/3/5: 
+- fasta or fastq files as input (autodetect)
+- fastq files as output option (when input is fastq)
 
