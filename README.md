@@ -63,6 +63,7 @@ Requirements:
 2020/3/5: 
 - fasta or fastq files as input (autodetect)
 - fastq files as output option (when input is fastq)
+
 2020/3/12:
 - option to take a random selection of the reads from the inputfile.
 - little improvement to sort out the groups in step 2. 
