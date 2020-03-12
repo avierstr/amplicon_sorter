@@ -32,6 +32,8 @@ Requirements:
 
 `-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
 
+`-ra', '--random`: Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria
+
 ### How it works (in short):
 
  1. The script reads the inputfile and creates a read length histogram of all the reads in the file.
@@ -53,12 +55,15 @@ Requirements:
 - 10000 reads (`--maxreads`) on 12 cores takes several hours to finish.  
 
 ### Todo:
-- random selection of part of input sequences
 - options to create read length histogram only
 - option to filter to gene groups only and later start from there to play with the `--similar_species` option
+- option to save results in a subfolder
 
 ### Release notes: 
 2020/3/5: 
 - fasta or fastq files as input (autodetect)
 - fastq files as output option (when input is fastq)
+2020/3/12:
+- option to take a random selection of the reads from the inputfile.
+- little improvement to sort out the groups in step 2. 
 
