@@ -2,8 +2,10 @@
 """
 
 Python 3.5.1
+(March 2019)
 
-File version 1.21 (Feb 2019)
+File version 2020.03.11 
+
 @author: Andy Vierstraete
 
 compare sequences from a MinION run and sort them based on similarity
@@ -22,6 +24,7 @@ from threading import Thread
 from Levenshtein import distance as l_distance
 from Levenshtein import median as l_median
 import os
+import random
 import time
 import glob
 import pickle
@@ -99,6 +102,8 @@ def get_arguments():
                         help='Similarity to sort to species level (value between 50 and 100). Default=85.0')
     parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
                         help='Save the results also in fastq files (fastq files will not contain the consensus sequence)')
+    parser.add_argument('-ra', '--random', action = 'store_true',
+                        help='Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria')
 
     args = parser.parse_args()
     return args
@@ -195,10 +200,10 @@ def read_file(self):
     minlength = args.minlength
     maxlength = args.maxlength
     maxreads = args.maxreads
+    ran = args.random
     global comparelist, num_seq
     comparelist = []
     readlengthlist = []
-    i = 0 # number of reads to process
     ti = 0  # total number of reads in the file
     print('Reading ' + self)
     with open (logfile, 'w') as lf:
@@ -210,16 +215,19 @@ def read_file(self):
         # add name, sequence, index number to list
         # index number is needed for resorting to original order later (filter_seq) to get
         # higher speed when searching for item in list
-        if i < maxreads:
-            if len(record.seq) >= minlength:
-                if maxlength is None:
-                    comparelist.append([record.id, str(record.seq), '', '']) #new
-                    i += 1
-                else:
-                    if len(record.seq) <= maxlength:
-                        comparelist.append([record.id, str(record.seq), '', ''])
-                        i += 1
-        
+        if len(record.seq) >= minlength:
+            if maxlength is None:
+                comparelist.append([record.id, str(record.seq), '', '']) #new
+            else:
+                if len(record.seq) <= maxlength:
+                    comparelist.append([record.id, str(record.seq), '', ''])
+    total_num_seq = len(comparelist) # total number of reads passed selection
+    if ran == True:
+        comparelist = random.sample(comparelist, maxreads)
+        sentence = '--> Reading random '
+    else:
+        comparelist = comparelist[0:maxreads] 
+        sentence = '--> Reading '
     inputfile.close()
     print(self + ' contains ' + str(ti) + ' reads.')
     figure(readlengthlist) # make a read length histogram from the inputfile
@@ -227,13 +235,13 @@ def read_file(self):
     for i,[w,x,y,z] in enumerate(comparelist):
         comparelist[i] = [w, x, 'u', i] # replace third pos with 'u' (unique) and 4th pos of each 
                                         # list item with index number
-    num_seq = len(comparelist)
+    num_seq = len(comparelist) # number of sample reads
     if maxlength is None:
-        print('--> Reading ' + str(num_seq) + ' sequences longer than ' + 
-              str(minlength) + 'bp')
+        print(sentence + str(num_seq) + ' out of ' + str(total_num_seq) + 
+              ' sequences longer than ' + str(minlength) + 'bp')
     else:
-        print('--> Reading ' + str(num_seq) + ' sequences between ' + 
-              str(minlength) + ' and ' + str(maxlength) + 'bp')
+        print(sentence + str(num_seq) + ' out of ' + str(total_num_seq) + 
+              ' sequences between ' + str(minlength) + ' and ' + str(maxlength) + 'bp')
 #    with open (logfile, 'a') as lf:
 #        print('--> File contains ' + str(num_seq) + ' sequences' , file = lf)
     comparelist = comparelist[:]  # for debugging with smaller list
@@ -443,8 +451,12 @@ def update_list(tempfile):
     #..........................................................................
     for j, x in enumerate(templist):   
         for s in grouplist: 
-            if x[1] in s :
-                s.append(x[0]) # extend([x[0], x[1]])
+#            if x[1] in s :
+#                s.append(x[0]) # extend([x[0], x[1]])
+#                templist[j] = [] # remove when added
+#                break    
+            if x[1] in s or x[0] in s:
+                s.extend([x[0], x[1]])
                 templist[j] = [] # remove when added
                 break    
         else:
@@ -474,6 +486,8 @@ def update_list(tempfile):
 #        print('--> Number of groups after merge: ' + str(a2)) 
         
     grouplist = merge_groups(grouplist)
+    print('comparing consensuses in the groups')
+    grouplist = comp_consensus_groups(grouplist)
         
     grouped_seq = 0 # number of sequences in grouplist  
     for x in grouplist:
@@ -529,6 +543,51 @@ def merge_groups(grouplist):
         grouplist = [list(set(i)) for i in grouplist if len(i) > 0]  # remove empty sublists
         a2 = len(grouplist)
     print('--> Number of groups after merge: ' + str(a2)) 
+    return grouplist
+#==============================================================================
+def comp_consensus_groups(grouplist):
+    position = 0
+    grouplist2 = grouplist.copy() # need copy to delete and extend items
+    
+    for i,x in enumerate(grouplist): # create consensus of 20 seq in each group
+        consensuslist = []
+        for y in x[0:20]:
+            consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
+        consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
+        consensus = l_median(consensuslist2)  # create consensuse sequence
+        grouplist[i].append(consensus)  # add consensus sequence to the group  
+        
+    y = 0 #position in first range
+    z = 0 #position in 2nd range
+    for position in range(position, len(grouplist)-1):
+        z = y
+        for position2 in range(position+1,len(grouplist)):
+            z +=1
+            A1 = grouplist[position]
+            A2 = grouplist[position2]
+            if len(A1[-1])*1.3 < len(A2[-1]) or len(A2[-1])*1.3 < len(A1[-1]):
+                pass  #don't compare if length of sequences differ to much
+            else:
+                idenlist = []
+                iden = distance(A1[-1],A2[-1])
+                idenlist.append(iden) # add iden to list
+                idenR = distance(A1[-1],compl_reverse(A2[-1]))
+                idenlist.append(idenR) # add idenR to list
+                idenlist.sort(reverse=True) # sort the list
+                iden = idenlist[0] # take the biggest value
+                if iden >= 0.50 : 
+                    grouplist2[position].extend(A2)
+#                    with open('consensusseq.txt', 'a') as cs:
+#                        print('>1\n' + str(A1[-1]) + '\n>2\n' + str(A2[-1]) + '\n' + 
+#                          str(iden) +' '+ str(len(A1[-1])) +' '+ str(len(A2[-1])), file = cs)
+
+        y += 1  
+                 
+    grouplist = merge_groups(grouplist2)
+
+    for i,x in enumerate(grouplist):  # remove consensus from groups
+        grouplist[i] = [y for y in x if y.isdigit()]
+    
     return grouplist
 #==============================================================================
 def read_indexes(group_filename): # read index numbers from the the input file
@@ -634,7 +693,7 @@ def filter_seq(group_filename, grouplist, indexes):
                 grouped_seq += 1
                 
     consensusfilename = group_filename.replace('.group', '_consensussequences.fasta') # group consensusfile
-    consensusfile = infile.replace('.fastq', '_consensussequences.fasta').replace('.fasta', '_consensussequences.fasta') # total consensusfile
+    consensusfile = infile.replace('.fasta', '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta') # total consensusfile
     
     try:  # remove  file if exists
         os.remove(consensusfilename)
@@ -961,7 +1020,7 @@ def sort_groups(): # read the gene groups and sort sequences according to specie
 #==============================================================================
 def sort(todoqueue): 
     global similar, comparelist
-    consensusfile = infile.replace('.fastq', '_consensussequences.fasta').replace('.fasta', '_consensussequences.fasta') # total consensusfile
+    consensusfile = infile.replace('.fasta', '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta') # total consensusfile
     try:  # remove  file if exists
         os.remove(consensusfile)
     except FileNotFoundError:
@@ -988,13 +1047,10 @@ def sort(todoqueue):
 
 - de "unieke" sequenties vergelijken met de groepen-> niet nodig, zijn probleemsequenties (bevatten chimeren en combinaties)
 
-- totaal aantal reads in inputfile tellen en grafiek maken van readlength -> OK
-- een lijst maken met hoeveel sequenties in welke groep en die op het einde printen -> OK
-- consensussequenties met elkaar vergelijken om groepen samen te gooien
-- optie saven in fasta of fastq
 - optie om afzonderlijk in groepen te splitten en nadien afzonderlijk in species te splitten
 - oplossing zoeken voor extentie inputfiles (fasta, fastq, fq, fa, ...)
 - option om op te slaan in een subfolder
+- er zijn nog problemen met het indelen in groepen: sommige genen zitten in verschillende groepen
 
 """
         
