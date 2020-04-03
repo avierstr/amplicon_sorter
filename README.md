@@ -34,7 +34,7 @@ Requirements:
 
 `-ra', '--random`: Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria
 
-`-of', '--outputfolder`: Save the results in the specified outputfolder. Default = current working folder
+`-of', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
 
 ### How it works (in short):
 
