@@ -72,7 +72,7 @@ Requirements:
 
 2020/4/17:
 
-- Added vertical lines to the read length histogram with the minimum and maximum read length that were given as read length selections.
+- Added vertical lines to the read length histogram with the minimum and maximum read length that were given as read length selections.![readlengthhistogram](https://github.com/avierstr/amplicon_sorter/blob/master/readlengthhistogram.jpg)
 - Option to create a read length histogram only (`--histogram_only`).
 - Option to change the similarity when CREATING species groups (`--similar_species_groups`).
 - Option (`--species_only`) to play with the `--similar_species` and `--similar_species_groups` parameters without having to start all over.  
