@@ -28,13 +28,19 @@ Requirements:
 
 `-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=55.0
 
-`-ss', '--similar_species`: Similarity to sort to species level (value between 50 and 100). Default=85.0
+`-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=92.0
+
+`-ss', '--similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
 
 `-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
 
 `-ra', '--random`: Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria
 
 `-of', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
+
+`-ho', '--histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
+
+`-so', '--species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.
 
 ### How it works (in short):
 
@@ -59,23 +65,30 @@ Requirements:
 
 ### Todo:
 
--   options to create read length histogram only
--   option to filter to gene groups only and later start from there to play with the `--similar_species` option
+-  For now, only files with .fasta or .fastq extensions are allowed. Make it foolproof to allow other extension as long it contains sequences in fastq or fasta format.
+-  Try to improve speed for comparison of sequences.
 
 ### Release notes:
 
-2020/3/5:
+2020/4/17:
 
--   fasta or fastq files as input (autodetect)
--   fastq files as output option (when input is fastq)
-
-2020/3/12:
-
--   option to take a random selection of the reads from the inputfile.
--   little improvement to sort out the groups in step 2.
+- Added vertical lines to the read length histogram with the minimum and maximum read length that were given as read length selections.
+- Option to create a read length histogram only (`--histogram_only`).
+- Option to change the similarity when CREATING species groups (`--similar_species_groups`).
+- Option (`--species_only`) to play with the `--similar_species` and `--similar_species_groups` parameters without having to start all over.  
 
 2020/4/3:
 
- - option to save results in a subfolder.
- - more little improvement to sort out the groups in step 2. (The result is still not what I had in mind: sometimes reads of ITS and 18S are in the same group.  The reason for this is that ITS can be very different from species to species.  If I set similarity to 55%, it can put some ITS in the 18S group.  If I set it higher, than COI is not in one group.  This has no influence on the end results in step 3-4) 
+ - Option to save results in a subfolder (`--outputfolder`).
+ - More little improvement to sort out the groups in step 2. (The result is still not what I had in mind: sometimes reads of ITS and 18S are in the same group.  The reason for this is that ITS can be very different from species to species.  If I set similarity to 55%, it can put some ITS in the 18S group.  If I set it higher, than COI is not in one group.  This has no influence on the end results in step 3-4). 
+
+2020/3/12:
+
+-   Option to take a random selection of the reads from the inputfile (`--random`).
+-   Little improvement to sort out the groups in step 2.
+
+2020/3/5:
+
+-   Fasta or fastq files possible as input (autodetect).
+-   Fastq files as output option (when input is fastq) (`--save_fastq`).
 
