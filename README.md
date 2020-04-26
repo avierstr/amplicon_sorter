@@ -51,7 +51,6 @@ Requirements:
 5.  Files are produced per group with all consensus sequences for that group. A file is produced with all consensus sequences of all groups.
 6.  Files are produced with 'unique' sequences (script does not find a group where it belongs to according to the settings)
 
-### How it works (figure):
 
 ![amplicon_sorter](https://github.com/avierstr/amplicon_sorter/blob/master/ampliconsorter.jpg)
 
