@@ -3,7 +3,7 @@
 
 Python 3.5.1
 
-File version 2020.04.17 
+File version 2020.04.27 
 
 @author: Andy Vierstraete
 
@@ -33,9 +33,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import AutoMinorLocator
 
-global tempfile, infile, num_seq
+global tempfile, infile, num_seq, saved_comparelist
 global chunk
-tempfile = 'compare.tmp'
+#tempfile = 'compare.tmp'
 chunk = 500000   # split size of the chunks to feed the multiprocessing queue
 
 
@@ -487,7 +487,7 @@ def update_list(tempfile):
 #                print(x, file = lf)
     except FileNotFoundError:
         print('--------------------------------------------------------------------------')
-        print('compare.txt and comparelist.pickle are missing.')
+        print('"infile_"compare.tmp and "infile"_comparelist.pickle are missing.')
         print('You have to do process the file without the "--species_only" option first.')
         print('--------------------------------------------------------------------------')
         sys.exit()
@@ -824,9 +824,9 @@ def update_groups(group_filename, grouplist):
             templist.append(line.strip().split(':'))
     except FileNotFoundError:
         pass
-    templist.sort(key=lambda x: (int(x[1]), float(x[2]))) #sort list based on 1st number (A2) and score 
+    templist.sort(key=lambda x: (int(x[0]), float(x[2]))) #sort list based on 1st number (A2) and score 
     for i, j in enumerate(templist[:-1]):
-        if j[1] == templist[i+1][1]: # if first index number is the same
+        if j[0] == templist[i+1][0]: # if first index number is the same
             if j[2] <= templist[i+1][2]: # if iden is lower or equal
 #                if float(j[2]) < similar:
                 j[2] = ''                # mark to remove
@@ -988,6 +988,7 @@ def rest_reads(indexes, grouplist, group_filename):
 #==============================================================================
 def sort_genes(): # read the input file and sort sequences according to gene
     # remove temporary file if exists
+    global saved_comparelist    
     outputfolder = args.outputfolder
     try:
         filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
@@ -1003,12 +1004,12 @@ def sort_genes(): # read the input file and sort sequences according to gene
         read_file(infile)
         process_list(comparelist) 
     #    update_list(tempfile)
-        with open('comparelist.pickle', 'wb', buffering=0) as wf:
+        with open(saved_comparelist, 'wb', buffering=0) as wf:
             pickle.dump(comparelist, wf)
         with open('readme.txt', 'w') as rm:
             print('This folder contains 2 temporary files:', file = rm)
-            print('- compare.tmp = text file with similarity between numbered sequences.', file = rm)
-            print('- comparelist.pickle = binary file with all sequence info in python', file = rm)
+            print('- "infile"_compare.tmp = text file with similarity between numbered sequences.', file = rm)
+            print('- "infile"_comparelist.pickle = binary file with all sequence info in python', file = rm)
             print('  pickle format.  ', file = rm)
             print('', file = rm)
             print('If you want to play with the "--similar_species_groups" or "--similar_species"', file = rm)
@@ -1018,12 +1019,12 @@ def sort_genes(): # read the input file and sort sequences according to gene
             print('Otherwise, these 2 files can be removed.', file = rm)
 #==============================================================================
 def sort_groups(): # read the gene groups and sort sequences according to species
-    global comparelist, resultlist, num_seq
+    global comparelist, resultlist, num_seq, saved_comparelist
     nprocesses = args.nprocesses
     outputfolder = args.outputfolder
     todoqueue = Queue()
     try:
-        with open('comparelist.pickle', 'rb') as rf:
+        with open(saved_comparelist, 'rb') as rf:
             comparelist = pickle.load(rf)
         num_seq = len(comparelist)
     except FileNotFoundError:
@@ -1088,7 +1089,7 @@ def sort(todoqueue):
 - oplossing zoeken voor extentie inputfiles (fasta, fastq, fq, fa, ...)
 - testen om korte stukken seq te vergelijken of dat sneller gaat
 -sequenties op het einde (in de cons.fasta) in volgorde van aantal zetten
--figuur maken met uitleg hoe het script werkt
+-in outputfiles de sequenties vergelijken met de consensus, indien te veel verschil ze eruit gooien
 
 """
         
@@ -1099,6 +1100,8 @@ def sort(todoqueue):
 if __name__ == '__main__':
     args = get_arguments()
     infile = args.input
+    tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', '_compare.tmp')
+    saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace('.fasta', '_comparelist.pickle')
     if args.species_only == True:
         sort_groups()
     else:
