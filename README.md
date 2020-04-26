@@ -48,8 +48,12 @@ Requirements:
 2.  It starts processing a selection of the reads (based on minlength, maxlenght, maxreads). It saves the result in .group files that contain reads of the same gene (e.g. group_1 with 18S reads, group_2 with COI reads, group_3 with ITS reads).
 3.  It processes the group files to sort out the genes to species or genus level and saves this to different files. (e.g. file_1_1.fasta is 18S from species1, file1_2.fasta is 18S from species2, ...)
 4.  Each outputfile contains at the end the consensus file of the sequences in the file.
-5.  Files are produced per group with all consensus sequences for that group. A file is produced with all consensus sequences.
+5.  Files are produced per group with all consensus sequences for that group. A file is produced with all consensus sequences of all groups.
 6.  Files are produced with 'unique' sequences (script does not find a group where it belongs to according to the settings)
+
+### How it works (figure):
+
+![amplicon_sorter](https://github.com/avierstr/amplicon_sorter/blob/master/ampliconsorter.jpg)
 
 ### Command examples:
 
@@ -69,6 +73,11 @@ Requirements:
 -  Try to improve speed for comparison of sequences.
 
 ### Release notes:
+
+2020/4/27:
+
+- Little change in step 3 that improves the processing speed.
+- Made names of temporary files unique in case you want to process different files in one folder.
 
 2020/4/17:
 
