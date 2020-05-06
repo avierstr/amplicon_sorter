@@ -73,6 +73,11 @@ Requirements:
 
 ### Release notes:
 
+2020/5/6:
+
+- Little cosmetic change in read length histogram.
+- Corrected a minor bug with (`--histogram_only`) option.
+
 2020/4/27:
 
 - Little change in step 3 that improves the processing speed.
