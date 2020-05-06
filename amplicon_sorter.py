@@ -191,7 +191,7 @@ def figure(readlengthlist):
     plt.axvline(maxlength, color='red', linewidth=0.8, linestyle='dashed')
 
     
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.0F}'.format(x/1000))) # divide read length by 1000
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x/1000))) # divide read length by 1000
     ax.xaxis.set_minor_locator(AutoMinorLocator()) # put subdevisions on x-scale
 #    plt.savefig(figname, format='pdf', dpi=300)
 
@@ -209,7 +209,7 @@ def figure(readlengthlist):
     plt.text(maxlength, 0.7, 'MaxLen: {:}'.format(maxlength), fontsize=6, 
              rotation=90, horizontalalignment='right')
     
-    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:,.0F}'.format(x/1000))) # divide read length by 1000
+    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x/1000))) # divide read length by 1000
     ax2.xaxis.set_minor_locator(AutoMinorLocator()) # put subdevisions on x-scale
 #    plt.legend(loc='center right')
     plt.tight_layout()
@@ -1106,4 +1106,7 @@ if __name__ == '__main__':
         sort_groups()
     else:
         sort_genes()
-        sort_groups()
+        if args.histogram_only == True: # if only histogram is wanted
+            pass
+        else:
+            sort_groups()
