@@ -73,6 +73,10 @@ Requirements:
 
 ### Release notes:
 
+2020/5/20:
+- Save a file "results.txt" in outputfolder with how many reads are in which file.
+- Catching error when there are less reads available than asked in `--maxreads`.
+
 2020/5/6:
 
 - Little cosmetic change in read length histogram.
