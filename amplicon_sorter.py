@@ -257,11 +257,17 @@ def read_file(self):
                     comparelist.append([record.id, str(record.seq), '', ''])
     total_num_seq = len(comparelist) # total number of reads passed selection
     if ran == True:
-        comparelist = random.sample(comparelist, maxreads)
-        sentence = '--> Reading random '
+        try:
+            comparelist = random.sample(comparelist, maxreads)
+            sentence = '--> Reading random '
+        except ValueError:  #catch error if there are not as much reads as wanted in maxreads
+            sentence = '--> Not as much reads available as wanted, reading all '
     else:
-        comparelist = comparelist[0:maxreads] 
-        sentence = '--> Reading '
+        try:
+            comparelist = comparelist[0:maxreads] 
+            sentence = '--> Reading '
+        except ValueError:  #catch error if there are not as much reads as wanted in maxreads
+            sentence = '--> Not as much reads available as wanted, reading all '
     inputfile.close()
     print(self + ' contains ' + str(ti) + ' reads.')
     
@@ -735,9 +741,9 @@ def filter_seq(group_filename, grouplist, indexes):
 
             elif y.isdigit():
                 t += 1 # count number of sequences in group
-        with open(os.path.join(outputfolder, 'results.tmp'), 'a') as rf:
+        with open(os.path.join(outputfolder, 'results.txt'), 'a') as rf:
             rf.write('--> ' + str(os.path.split(outputfile)[1]) + ' contains ' + str(t) + ' sequences (' + str(round((len(x)-1)*100/len(indexes), 2)) + '%)\n')
-    with open(os.path.join(outputfolder,'results.tmp'), 'a') as rf:
+    with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
         rf.write(str(grouped_seq) + '/' + str(len(indexes)) + ' sequences assigned in groups for ' 
           + group_filename + ' (' + str(round(grouped_seq*100/len(indexes), 2)) + '%)\n')
     MYLOCK.release()
@@ -1030,6 +1036,11 @@ def sort_groups(): # read the gene groups and sort sequences according to specie
     except FileNotFoundError:
         pass 
     
+    try:
+        os.remove(os.path.join(outputfolder,'results.txt'))
+    except FileNotFoundError:
+        pass
+    
     update_list(tempfile)
                
     for dirpath, dirnames, filenames in os.walk(outputfolder):
@@ -1052,11 +1063,10 @@ def sort_groups(): # read the gene groups and sort sequences according to specie
        # Optionally try to gracefully shut down the worker processes here.
         p.terminate()
         p.join()  
-    with open(os.path.join(outputfolder,'results.tmp'), 'r') as rf: # print info of groups at the end
+    with open(os.path.join(outputfolder,'results.txt'), 'r') as rf: # print info of groups at the end
         results = rf.readlines()
         for line in results:
             print(line.strip())
-    os.remove(os.path.join(outputfolder,'results.tmp'))
 #==============================================================================
 def sort(todoqueue): 
     global similar, comparelist
