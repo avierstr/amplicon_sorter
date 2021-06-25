@@ -4,8 +4,6 @@ Sorts amplicons from Nanopore sequencing data based on similarity, creates group
 
 (Only works on Linux because it uses multiprocessing)
 
-(This is a work in progress, but already producing good enough results to share the script.)
-
 Requirements:
 
 -   Python 3
@@ -34,9 +32,9 @@ Requirements:
 
 `-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
 
-`-ra', '--random`: Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria
+`-ra', '--random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
 
-`-of', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
+`-o', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
 
 `-ho', '--histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
 
@@ -56,22 +54,44 @@ Requirements:
 
 ### Command examples:
 
-`python3 amplicon_sorter.py -i inputset1.fastq` : process file with default settings.
+`python3 amplicon_sorter.py -i inputset1.fastq -o set1 -ra -np 8 -min 600 -max 1000 -maxr 10000` : process file with default settings, save in folder set1, sample random reads, run on 8 processors, minimum length of reads = 600, max length of reads = 1000, use 10.000 reads.  
+For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enough.  When you have samples with an unknown number of amplicons, it is better to increase the number of reads.  (see the `--random` option)
 
-`python3 amplicon_sorter.py -i inputset1.fastq --similar_species 80 --nprocesses 8`: process file on 8 cores with allowing the similarity between sequences of the same gene as low as 80%
+
+`python3 amplicon_sorter.py -i inputset1.fastq -ho`: only produce the readlength histogram of inputset1.fastq
 
 ### My experience so far:
 
--   Guppy produces reads with Q-score >=7 by default. If I filter reads to Q-score >= 10 or Q-score >= 11, the end result (similarity % of the consensus to a species in BLAST) is for all comparable. The only difference is that I get more reads per species group for Q-score 11 than for Q-score 7, and that there are less reads in the 'unique' groups.
--   The same results if I lower the `--similar_species` value from 90% to 80%. Above 90% the similarity in Blast is getting lower, between 80 and 90 the similarity is comparable. The lower I go, the more sequences in the species groups.
+-   Guppy produces reads with Q-score >=7 by default. It is better to use reads with Q-score >= 12 because then there are less reads to compare.  At the end, using reads with Q-score >=7 gives the same results (consensus accuracy), but more reads can not be assigned to a group.  Similarity of the consensus with Blast references is between 98.2 and 100%.  All errors were found in homopolymer regions.  
 -   10000 reads (`--maxreads`) on 12 cores takes several hours to finish.
 
 ### Todo:
 
--  For now, only files with .fasta or .fastq extensions are allowed. Make it foolproof to allow other extension as long it contains sequences in fastq or fasta format.
--  Try to improve speed for comparison of sequences.
+- Try to improve speed for comparison of sequences.
+- Try to fine tune sorting to species level.  If there are species in the sample that are more than 94% similar, the script has difficulties to separate them.  Species with a higher similarity are often grouped together and give a lower consensus sequence because it is the "average" of 2 or more closely related species.
+- Improve random sampling to sequences of the same length and not to all reads.
 
 ### Release notes:
+
+2021/05/28:
+- improvement on combining groups
+- small speed improvement when creating consensus to compare groups
+
+2021/05/19:
+- small speed improvement when comparing remaining sequences with consensus in groups
+
+2021/05/13:
+- chunck number of comparisons in groups of 500K to save memory and process parallel
+- minor bug fixes and small speed improvements
+- improvements in number of groups created
+
+2021/05/06:
+- If no max number of reads is given, use all reads
+- write version of script in results.txt
+- write number of reads in length selection to readlength histogram
+- combine groups if consensus is at least 99% similar
+- save time by making consensus of max 500 random reads in group
+- major speed improvement when comparing a lot of sequences.  When the number of sequences is x 100, calculation time is x 10.000.  Subsampling in batches of 1000 sequences decreases calculation time x 10 (it does NOT compare al sequences with each other, it compares batches of 1000 with each other) 
 
 2020/5/20:
 - Save a file "results.txt" in outputfolder with how many reads are in which file.
@@ -80,7 +100,7 @@ Requirements:
 2020/5/6:
 
 - Little cosmetic change in read length histogram.
-- Corrected a minor bug with (`--histogram_only`) option.
+- Corrected a minor bug with (`-ho --histogram_only`) option.
 
 2020/4/27:
 
@@ -96,7 +116,7 @@ Requirements:
 
 2020/4/3:
 
- - Option to save results in a subfolder (`--outputfolder`).
+ - Option to save results in a subfolder (`-o --outputfolder`).
  - More little improvement to sort out the groups in step 2. (The result is still not what I had in mind: sometimes reads of ITS and 18S are in the same group.  The reason for this is that ITS can be very different from species to species.  If I set similarity to 55%, it can put some ITS in the 18S group.  If I set it higher, than COI is not in one group.  This has no influence on the end results in step 3-4). 
 
 2020/3/12:
@@ -108,4 +128,5 @@ Requirements:
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
+
 
