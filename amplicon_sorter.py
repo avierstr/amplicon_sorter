@@ -3,8 +3,6 @@
 
 Python 3.5.1
 
-File version 2020.04.27 
-
 @author: Andy Vierstraete
 
 compare sequences from a MinION run and sort them based on similarity
@@ -33,11 +31,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import AutoMinorLocator
 
-global tempfile, infile, num_seq, saved_comparelist
-global chunk
-#tempfile = 'compare.tmp'
-chunk = 500000   # split size of the chunks to feed the multiprocessing queue
+global tempfile, infile, num_seq, saved_comparelist, comparelist
 
+version = '2021-05-28'  # version of the script
 
 #==============================================================================
 #def levenshtein_distance(s1, s2):  # function to compare 2 sequences
@@ -112,7 +108,7 @@ def get_arguments():
                         help='Save the results also in fastq files (fastq files will not contain the consensus sequence)')
     parser.add_argument('-ra', '--random', action = 'store_true',
                         help='Takes random reads from the inputfile if --maxreads is lower than total number of reads that passed criteria')
-    parser.add_argument('-of', '--outputfolder', type=dir_path, required=False, default='./',
+    parser.add_argument('-o', '--outputfolder', type=dir_path, required=False, default='./',
                         help='Save the results in the specified outputfolder. Default = current working directory')
     parser.add_argument('-ho', '--histogram_only', action = 'store_true',
                         help='Only creates a read length histogram.')
@@ -160,7 +156,7 @@ def N50(readlengthlist, bases):  #calculate the N50
             return x
             break
 #==============================================================================
-def figure(readlengthlist):
+def figure(readlengthlist, total_num_seq):
     bases = sum(readlengthlist)
     length_N50 = N50(readlengthlist, bases) 
     try:
@@ -175,12 +171,16 @@ def figure(readlengthlist):
     plt.figure(1, figsize=[5,5])
     ax = plt.subplot(2,1,1)
     outputfolder = args.outputfolder
+    with open(os.path.join(outputfolder,'results.txt'), 'w') as rf:
+        rf.write('amplicon_sorter version: ' + version) # write the version of the script in the file 
     figname = infile.replace('.fastq', '_total_outputfig.pdf').replace('.fasta', '_total_outputfig.pdf')
     plt.ylabel('Number of reads')
     plt.title('Read length histogram') 
     plt.text(0.95, 0.55, 'Total yield (Gb): ' + str(round((bases/1000000000),2)) + 
              '\nNumber of reads: ' +
              '{:,}'.format(len(readlengthlist)) + 
+             '\n' + str(minlength) + ' < bp < ' + str(maxlength) +
+             ': {:,}'.format(total_num_seq) +
              '\nMax readlength: ' + str(round(max_readlength/1000,1)) + ' Kb' \
              '\nN50 = ' + str(round((length_N50/1000),1)) + ' Kb',   
              horizontalalignment='right', transform=plt.gca().transAxes)
@@ -235,7 +235,7 @@ def read_file(self):
     maxlength = args.maxlength
     maxreads = args.maxreads
     ran = args.random
-    global comparelist, num_seq
+    global comparelist2, num_seq, comparelist
     comparelist = []
     readlengthlist = []
     ti = 0  # total number of reads in the file
@@ -256,31 +256,54 @@ def read_file(self):
                 if len(record.seq) <= maxlength:
                     comparelist.append([record.id, str(record.seq), '', ''])
     total_num_seq = len(comparelist) # total number of reads passed selection
+    
+    for i,[w,x,y,z] in enumerate(comparelist):
+        comparelist[i] = [w, x, 'u', i] # replace third pos with 'u' (unique) and 4th pos of each 
+                                            # list item with index number
+        
+    comparelist2 = []
     if ran == True:
         try:
-            comparelist = random.sample(comparelist, maxreads)
+            while maxreads > 1000:
+                subcomparelist = random.sample(comparelist, 1000)
+                comparelist2.append(subcomparelist)
+                maxreads = maxreads -1000
+            else:
+                subcomparelist = random.sample(comparelist, maxreads)
+                comparelist2.append(subcomparelist)
             sentence = '--> Reading random '
         except ValueError:  #catch error if there are not as much reads as wanted in maxreads
+            comparelist2 = comparelist
             sentence = '--> Not as much reads available as wanted, reading all '
     else:
         try:
-            comparelist = comparelist[0:maxreads] 
+            n = 0
+            while maxreads > 1000:
+                subcomparelist = comparelist[n:n+1000]
+                comparelist2.append(subcomparelist) 
+                maxreads = maxreads -1000
+                n += 1000
+            else:
+                subcomparelist = comparelist[n:n+maxreads]
+                comparelist2.append(subcomparelist)
             sentence = '--> Reading '
         except ValueError:  #catch error if there are not as much reads as wanted in maxreads
+            comparelist2 = comparelist
             sentence = '--> Not as much reads available as wanted, reading all '
     inputfile.close()
     print(self + ' contains ' + str(ti) + ' reads.')
     
     if args.histogram_only == True: # if only histogram is wanted
-        figure(readlengthlist) # make a read length histogram from the inputfile
-        num_seq = len(comparelist) # number of sample reads
+        figure(readlengthlist, total_num_seq) # make a read length histogram from the inputfile
+        if maxlength is None:
+            maxlength = sorted(readlengthlist)[-1] 
+        num_seq = sum(len(x) for x in comparelist2) # number of sample reads
+        print('--> There are ' + str(total_num_seq) + 
+                  ' sequences between ' + str(minlength) + ' and ' + str(maxlength) + 'bp')
     else:
-        figure(readlengthlist) # make a read length histogram from the inputfile
-        comparelist.sort(key=lambda x: len(x[1])) #sort list based on length seq
-        for i,[w,x,y,z] in enumerate(comparelist):
-            comparelist[i] = [w, x, 'u', i] # replace third pos with 'u' (unique) and 4th pos of each 
-                                            # list item with index number
-        num_seq = len(comparelist) # number of sample reads
+        figure(readlengthlist, total_num_seq) # make a read length histogram from the inputfile
+        
+        num_seq = sum(len(x) for x in comparelist2) # number of sample reads
         if maxlength is None:
             print(sentence + str(num_seq) + ' out of ' + str(total_num_seq) + 
                   ' sequences longer than ' + str(minlength) + 'bp')
@@ -289,14 +312,13 @@ def read_file(self):
                   ' sequences between ' + str(minlength) + ' and ' + str(maxlength) + 'bp')
     #    with open (logfile, 'a') as lf:
     #        print('--> File contains ' + str(num_seq) + ' sequences' , file = lf)
-        comparelist = comparelist[:]  # for debugging with smaller list
-    return comparelist, num_seq
+    return comparelist, comparelist2, num_seq
 #==============================================================================
 def process_list(self):
-    global comparelist, len_todolist
+    global comparelist2, len_todolist
     nprocesses = args.nprocesses
     # compare 1 with 2,3,4,5,...; compare 2 with 3,4,5,... compare 3 with 4,5,...
-
+    chunk = 500000   # split size of the chunks to feed the multiprocessing queue
     len_todolist = 0
     todoqueue = Queue(maxsize = 2)
     outputfolder = args.outputfolder
@@ -311,42 +333,49 @@ def process_list(self):
         global len_todolist
         
 #        print('start queueing')
-        position = 0
-        y = 0 #position in first range
-        z = 0 #position in 2nd range
         l = 0 # length of todolist
         k = 0 # number of todofiles
         tl = 0 #total length todolist
         todolist = []
-        for position in range(position, len(self)-1):
-            z = y
-            for position2 in range(position+1,len(self)):
-                z +=1
-                A1 = self[position]
-                A2 = self[position2]
-                if len(A1[1])*1.3 < len(A2[1]):
-                    pass  #don't compare if length of sequences differ to much
-                else:
-                    todolist.append([A1,A2])
-                    l += 1
-                    tl += 1
-                    if l == chunk:
-                        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
-                        with open(todofilename, 'wb') as wf:
-                            pickle.dump(todolist, wf)
-                        todolist = []
-                        k += 1
-                        l = 0
-            y += 1
-            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
-            with open(todofilename, 'wb', buffering=0) as wf:
-                pickle.dump(todolist, wf)
+        for d in self: # comparelist2 is a list of lists
+            d.sort(key=lambda x: len(x[1])) #sort list based on length seq
+            position = 0
+            y = 0 #position in first range
+            z = 0 #position in 2nd range
+            
+            for position in range(position, len(d)-1):
+                z = y
+                for position2 in range(position+1,len(d)):
+                    z +=1
+                    A1 = d[position]
+                    A2 = d[position2]
+                    if len(A1[1])*1.3 < len(A2[1]):
+                        pass  #don't compare if length of sequences differ to much
+                    else:
+                        todolist.append([A1,A2])
+                        l += 1
+                        tl += 1
+                        if l == chunk:
+                            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                            with open(todofilename, 'wb') as wf:
+                                pickle.dump(todolist, wf)
+                            todolist = []
+                            k += 1
+                            l = 0
+                y += 1
             for dirpath, dirnames, filenames in os.walk(outputfolder):
                 filenames = [i for i in filenames if i.endswith('.todo')]
             while len(filenames) > 20: # limit numbers of temporary files
                 time.sleep(120)  
                 for dirpath, dirnames, filenames in os.walk(outputfolder):
                     filenames = [i for i in filenames if i.endswith('.todo')]
+        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+        with open(todofilename, 'wb', buffering=0) as wf:
+            pickle.dump(todolist, wf)
+        todolist = []
+        k += 1
+        l = 0
+
         len_todolist = tl
        
         return len_todolist
@@ -411,7 +440,7 @@ def process_list(self):
     
 #==============================================================================
 def similarity(todoqueue):
-    global progress, chunk, len_todolist
+    global progress, len_todolist
 #    outputfolder = args.outputfolder
     try:  # remove temporary file if exists
         os.remove(tempfile)
@@ -431,7 +460,7 @@ def similarity(todoqueue):
                 if iden >= similarg: # limit of being the same gene for nanopore data ?
 #                    print('Similarity is ' + str(iden))
                     templist.append((str(A1[3]) + ':' + str(A2[3]) + ':' + str(iden)))
-                elif iden < similarg:
+                elif iden < 0.5:
                     iden = distance(A1[1],compl_reverse(A2[1]))
                     if iden >= similarg:
 #                        print(str(A1[3]) + ':' + str(A2[3]) + ':' + str(iden) + ':' + ' reverse')
@@ -447,7 +476,6 @@ def similarity(todoqueue):
 
         q = 0
         MYLOCK.release()
-
 #==============================================================================
 def update_list(tempfile):
 #    similarg = args.similar_genes/100
@@ -455,7 +483,7 @@ def update_list(tempfile):
     print('Filtering compared sequences for best hits and create groups')
 #    with open (logfile, 'a') as lf:
 #        print('Filtering compared sequences for best hits and create groups', file = lf)
-    global comparelist, consensusgroup, num_seq #, grouplist
+    global consensusgroup, num_seq #, grouplist
     
    
     templist = []
@@ -527,23 +555,25 @@ def update_list(tempfile):
     print(str(grouped_seq) + '/' + str(num_seq) + ' sequences assigned in groups (' + str(round(grouped_seq*100/num_seq, 2)) + '%)')
 
     # check which sequences do not belong to a group    
-    comparelist.sort(key=lambda x: x[3]) #sort list based on index number
-    for o, [rec_id, seq, scores, index] in enumerate(comparelist):
-        for i, n in enumerate(grouplist):
-            if str(index) in n:  # if it belongs to a group
-                comparelist[o][2] = i
-    comparelist2 = [i for i in comparelist if i[2] == 'u'] # only keep those that not belong to group
-    if len(comparelist2) > 0:
-        outputfile = os.path.join(outputfolder, infile.replace('.fastq', '_unique.group').replace('.fasta', '_unique.group'))
-        with open(outputfile, 'a') as outputf:
-            for x in comparelist2:
-                outputf.write(str(x[3]) + '\n')
-        print('  ' + str(os.path.split(outputfile)[1]) + ' contains ' + str(len(comparelist2)) + ' sequences (' + str(round(len(comparelist2)*100/num_seq, 2)) + '%)')
-    
-    # reset the comparelist
-    for i,[w,x,y,z] in enumerate(comparelist):
-        comparelist[i] = [w, x, 'u', z] # replace third pos with 'u' (unique) 
-#    return grouplist, comparelist#, consensusgroup  
+#    comparelist.sort(key=lambda x: x[3]) #sort list based on index number
+#    for o, [rec_id, seq, scores, index] in enumerate(comparelist2):
+#        for i, n in enumerate(grouplist):
+#            if str(index) in n:  # if it belongs to a group
+#                comparelist2[o][2] = i
+                
+
+#    comparelist3 = [i for i in comparelist2 if i[2] == 'u'] # only keep those that not belong to group
+#    if len(comparelist3) > 0:
+#        outputfile = os.path.join(outputfolder, infile.replace('.fastq', '_unique.group').replace('.fasta', '_unique.group'))
+#        with open(outputfile, 'a') as outputf:
+#            for x in comparelist3:
+#                outputf.write(str(x[3]) + '\n')
+#        print('  ' + str(os.path.split(outputfile)[1]) + ' contains ' + str(len(comparelist3)) + ' sequences (' + str(round(len(comparelist3)*100/num_seq, 2)) + '%)')
+#    
+#    # reset the comparelist
+#    for i,[w,x,y,z] in enumerate(comparelist2):
+#        comparelist2[i] = [w, x, 'u', z] # replace third pos with 'u' (unique) 
+    return grouplist#, consensusgroup  
 #==============================================================================
 def merge_groups(grouplist):
     a1 = len(grouplist)
@@ -569,54 +599,68 @@ def merge_groups(grouplist):
         grouplist = [list(set(i)) for i in grouplist if len(i) > 0]  # remove empty sublists
         a2 = len(grouplist)
     print('--> Number of groups after merge: ' + str(a2)) 
+    
     return grouplist
 #==============================================================================
 def comp_consensus_groups(grouplist):
+    global comparelist
     print('-> Merging based on consensus of 100 reads per group') 
-    position = 0
-    templist = []
-    for i,x in enumerate(grouplist): # create consensus of 20 seq in each group
-        consensuslist = []
-        for y in x[0:200]:
-            consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
-#        consensuslist.sort(key=lambda x: len(x), reverse = True) #sort list based on length seq
-        consensuslist2 = consensus_direction(consensuslist[0:100]) # get all seq in same direction (first 20 seq)
-        consensus = l_median(consensuslist2)  # create consensuse sequence
-        grouplist[i].append(consensus)  # add consensus sequence to the group  
+    a1 = len(grouplist)
+    a2 = 0
+    while a1 > a2:
+        a1 = len(grouplist)
+        position = 0
+        templist = []
+        for i,x in enumerate(grouplist): # create consensus of 100 seq in each group
+            consensuslist = []
+            if len(x) > 100: # if number of reads > 100, only take 100 for consensus
+                x = random.sample (x, 100)
+            for y in x:
+                consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
+    #        consensuslist.sort(key=lambda x: len(x), reverse = True) #sort list based on length seq
+            consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction (first 100 seq)
+            consensus = l_median(consensuslist2)  # create consensuse sequence
+            grouplist[i].append(consensus)  # add consensus sequence to the group  
+            
+        y = 0 #position in first range
+        z = 0 #position in 2nd range
+        for position in range(position, len(grouplist)-1):
+            z = y
+            for position2 in range(position+1,len(grouplist)):
+                z +=1
+                A1 = grouplist[position]
+                A2 = grouplist[position2]
+                if len(A1[-1])*1.3 < len(A2[-1]) or len(A2[-1])*1.3 < len(A1[-1]):
+                    pass  #don't compare if length of sequences differ to much
+                else:
+                    idenlist = []
+                    iden = distance(A1[-1],A2[-1])
+                    idenlist.append(iden) # add iden to list
+                    idenR = distance(A1[-1],compl_reverse(A2[-1]))
+                    idenlist.append(idenR) # add idenR to list
+                    idenlist.sort(reverse=True) # sort the list
+                    iden = idenlist[0] # take the biggest value
+                    if iden >= 0.55 : 
+                        templist.append([y, z, iden])
+    #                    grouplist2[position].extend(A2)
+    #                    with open('consensusseq2.fasta', 'a') as cs:
+    #                        print('>' + str(y) + '\n' + str(A1[-1]) + '\n>' + str(z) + '\n' + str(A2[-1]) + '\n' + 
+    #                          str(iden) +' '+ str(len(A1[-1])) +' '+ str(len(A2[-1])), file = cs)
+            y += 1  
         
-    y = 0 #position in first range
-    z = 0 #position in 2nd range
-    for position in range(position, len(grouplist)-1):
-        z = y
-        for position2 in range(position+1,len(grouplist)):
-            z +=1
-            A1 = grouplist[position]
-            A2 = grouplist[position2]
-            if len(A1[-1])*1.3 < len(A2[-1]) or len(A2[-1])*1.3 < len(A1[-1]):
-                pass  #don't compare if length of sequences differ to much
-            else:
-                idenlist = []
-                iden = distance(A1[-1],A2[-1])
-                idenlist.append(iden) # add iden to list
-                idenR = distance(A1[-1],compl_reverse(A2[-1]))
-                idenlist.append(idenR) # add idenR to list
-                idenlist.sort(reverse=True) # sort the list
-                iden = idenlist[0] # take the biggest value
-                if iden >= 0.55 : 
-                    templist.append([y, z, iden])
-#                    grouplist2[position].extend(A2)
-#                    with open('consensusseq2.fasta', 'a') as cs:
-#                        print('>' + str(y) + '\n' + str(A1[-1]) + '\n>' + str(z) + '\n' + str(A2[-1]) + '\n' + 
-#                          str(iden) +' '+ str(len(A1[-1])) +' '+ str(len(A2[-1])), file = cs)
-        y += 1  
+        for x in templist:  
+            grouplist[x[0]].extend(grouplist[x[1]])  # extend both groups with each other,
+         
+        grouplist = merge_groups(grouplist) # merge again based on numbers occuring in different groups
     
-    for x in templist:  
-        grouplist[x[0]].extend(grouplist[x[1]])  # extend both groups with each other,
-     
-    grouplist = merge_groups(grouplist) # merge again based on numbers occuring in different groups
+        for i,x in enumerate(grouplist):  # remove consensus from groups
+            grouplist[i] = [y for y in x if y.isdigit()]
+        
+        a2 = len(grouplist)
 
-    for i,x in enumerate(grouplist):  # remove consensus from groups
-        grouplist[i] = [y for y in x if y.isdigit()]
+    grouplist = [list(set(i)) for i in grouplist if len(i) > 5] # only keep groups with more than 5 seq
+    a2 = len(grouplist)
+    print('--> Number of groups after removing groups with less than 5 sequences: ' + str(a2))         
     
     return grouplist
 #==============================================================================
@@ -660,10 +704,16 @@ def read_indexes(group_filename): # read index numbers from the the input file
     
     grouplist = merge_groups(grouplist)
     
+    grouplist = [list(set(i)) for i in grouplist if len(i) > 2] # only keep groups with more than 5 seq
+    a2 = len(grouplist)
+    print('--> Number of groups after removing groups with less than 3 sequences: ' + str(a2)) 
+    
     print('----> Making consensus for each group')
 
     for i,x in enumerate(grouplist):
         consensuslist = []
+        if len(x) > 500: # if number of reads > 500, only take 500 for consensus
+            x = random.sample (x, 500)
         for y in x:
             consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
         consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
@@ -682,7 +732,7 @@ def filter_seq(group_filename, grouplist, indexes):
             fileformat = 'fasta'
         elif line[0] == '@':
             fileformat = 'fastq'
-    outputfolder = args.outputfolder        
+    outputfolder = args.outputfolder    
     if fileformat == 'fasta': # if the inputfile was fasta, it is not possible to 
         fq = False            # save results in fastq format
     else:
@@ -691,11 +741,11 @@ def filter_seq(group_filename, grouplist, indexes):
     print('Writing sequences with high similarity in separate files')
 #    with open (logfile, 'a') as lf:
 #        print('\nWriting sequences with high similarity in separate files', file = lf)
-    global comparelist #, indexes #, grouplist
+    global comparelist2 #, indexes #, grouplist
     MYLOCK.acquire()
     if fq == True:
         record_dict = SeqIO.index(infile, 'fastq')  # index the input fastq file
-    for rec_id, seq, scores, index in comparelist:
+    for rec_id, seq, scores, index in comparelist2:
         if str(index) in indexes:
             if scores == 'u':  # sequences that have no similarity with others
                  outputfile = os.path.join(outputfolder, group_filename).replace('.group', '_') + 'unique.fasta' # unique sequences
@@ -742,19 +792,21 @@ def filter_seq(group_filename, grouplist, indexes):
             elif y.isdigit():
                 t += 1 # count number of sequences in group
         with open(os.path.join(outputfolder, 'results.txt'), 'a') as rf:
-            rf.write('--> ' + str(os.path.split(outputfile)[1]) + ' contains ' + str(t) + ' sequences (' + str(round((len(x)-1)*100/len(indexes), 2)) + '%)\n')
+            rf.write('--> ' + str(os.path.split(outputfile)[1]) + ' contains ' + str(t) + ' sequences (' + 
+                     str(round((len(x)-1)*100/len(indexes), 2)) + '%)\n')
     with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
         rf.write(str(grouped_seq) + '/' + str(len(indexes)) + ' sequences assigned in groups for ' 
           + group_filename + ' (' + str(round(grouped_seq*100/len(indexes), 2)) + '%)\n')
     MYLOCK.release()
 #==============================================================================
 def process_consensuslist(indexes, grouplist, group_filename):  # comparison of sequences with consensus sequences
-    global comparelist, len_todolist
+    global len_todolist, comparelist2
 
     # compare each sequence with consensus1, consensus2,...
     todolist = []
     consensuslist = []
     outputfolder = args.outputfolder
+    nprocesses = args.nprocesses
     group_tempfile = os.path.join(outputfolder, group_filename).replace('.group', '.tmp')
 #    try:  # remove temporary file if exists
 #        os.remove(progressfile)
@@ -769,58 +821,114 @@ def process_consensuslist(indexes, grouplist, group_filename):  # comparison of 
                 
     for x, y in enumerate(grouplist): # put a number to each consensus that corresponds to the group
         consensuslist.append([x, y[-1]])  # add number and consensussequence
-        
-    comparelist2 = [i for i in comparelist if str(i[3]) in indexes2] # only keep those from group we are working with
+    
+    comparelist4 = [i for i in comparelist2 if str(i[3]) in indexes2] # only keep those from group we are working with
 #    print('len comparelist2 = ' + str(len(comparelist2)))
 #    print('len grouplist = ' + str(len(consensuslist)))
-    for x in range(0, len(comparelist2)):
+    k = 0 # number of todofiles
+    l = 0 # number of comparisons to do
+    for x in range(0, len(comparelist4)):
         for y in range(0,len(consensuslist)):
-            A1 = comparelist2[x]
+            A1 = comparelist4[x]
             A2 = consensuslist[y]
 #            print('A1 = ' + str(A1))
 #            print('A2 = ' + str(A2))
             if len(A1[1])*0.77 <= len(A2[1]) <= len(A1[1])*1.30:
                 todolist.append([A1,A2])
-            else:
-                pass  #don't compare if length of sequences differ to much
+                l +=1
+                if len(todolist) == 500000: # save in chuncks to save memory
+                    todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                    with open(todofilename, 'wb') as wf:
+                        pickle.dump(todolist, wf)
+                        todolist = []
+                        k += 1
+    todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+    with open(todofilename, 'wb') as wf:
+        pickle.dump(todolist, wf)
 
-    len_todolist = len(todolist)
-    print(group_filename + '----> ' + str(len(todolist)) + ' comparisons to calculate')
+
+    print(group_filename + '----> ' + str(l) + ' comparisons to calculate')
 #    with open (logfile, 'a') as lf:
 #        print(group_filename + '--> ' + str(len(todolist)) + ' comparisons to calculate', file = lf)
 
     try:  # remove temporary file if exists
         os.remove(os.path.join(outputfolder, group_tempfile))
     except FileNotFoundError:
-        pass
+        pass    
 
+    for dirpath, dirnames, filenames in os.walk(outputfolder):
+        filenames = [i for i in filenames if i.endswith('.todo')]
+        filenames.sort(key=lambda x: os.path.getmtime(os.path.join(outputfolder, x)))
+        for name in filenames:
+            print('...processing: ' + name)
+            with open(os.path.join(outputfolder, name), 'rb') as rf:
+                todolist = pickle.load(rf)
+                if len(todolist) >= nprocesses:
+                    chunk = len(todolist)//nprocesses
+                else:
+                    chunk = len(todolist)
+                todoqueue = Queue()
+                b = 0
+                e = chunk
+                while e < len(todolist):
+                    sublist = todolist[b:e]
+                    todoqueue.put(sublist)
+                    b = e
+                    e += chunk
+                else:
+                    sublist = todolist[b:e]
+                    todoqueue.put(sublist)
+                time.sleep(2)
+                os.remove(os.path.join(outputfolder, name))
+                try:
+                    process = [Process(target=similarity_species, args=(todoqueue, 
+                            outputfolder, group_tempfile,)) for x in range(nprocesses)]
+                    for p in process:
+                        #ask the processes to stop when all files are handled
+                        #"STOP" is at the very end of queue
+                        todoqueue.put("STOP")
+                    for p in process:
+                        p.start()
+                    for p in process:
+                        p.join()
+                except KeyboardInterrupt:
+                    print("Shutting processes down")
+                   # Optionally try to gracefully shut down the worker processes here.
+                    p.terminate()
+                    p.join()
+
+#============================================================================== 
+def similarity_species(todoqueue, outputfolder, group_tempfile):
     templist = []
-#    for X in todolist:
-    for A1, A2 in todolist:
-        try:
-            iden = distance(A1[1],A2[1])
-            if iden >= similar : # 0.80 is te laag voor 18s
-#                    print(str(A1[3]) + '-' + str(A2[0]) + ' : ' + str(iden))
-                templist.append((str(A1[3]) + ':' + str(A2[0]) + ':' + str(iden)))
-            elif iden < similar:
-                iden = distance(A1[1],compl_reverse(A2[1]))
-                if iden >= similar:
-#                        print(str(A1[3]) + '-' + str(A2[0]) + ':' + str(iden) + ' : ' + ' reverse')
+    MYLOCK = Lock()
+    for X in iter(todoqueue.get, 'STOP'):    #do stuff until infile.get returns "STOP"
+        for A1, A2 in X:
+            try:
+                iden = distance(A1[1],A2[1])
+                if iden >= similar - 0.01: # -0.01 to speed up, if no seq passed creteria
+    #                    print(str(A1[3]) + '-' + str(A2[0]) + ' : ' + str(iden))
                     templist.append((str(A1[3]) + ':' + str(A2[0]) + ':' + str(iden)))
-        except KeyboardInterrupt:
-            print("Shutting process down")
-#        print(len(templist))
+                elif iden < 0.5 :
+                    iden = distance(A1[1],compl_reverse(A2[1]))
+                    if iden >= similar -0.01:
+    #                        print(str(A1[3]) + '-' + str(A2[0]) + ':' + str(iden) + ' : ' + ' reverse')
+                        templist.append((str(A1[3]) + ':' + str(A2[0]) + ':' + str(iden)))
+            except KeyboardInterrupt:
+                print("Shutting process down")
+    #        print(len(templist))
+    MYLOCK.acquire()
     with open(os.path.join(outputfolder,group_tempfile), 'a') as f:
         for c in templist:
             f.write(c +'\n')
         f.flush()
-
+    MYLOCK.release()
 #==============================================================================        
 def update_groups(group_filename, grouplist):
  #    with open (logfile, 'a') as lf:
 #        print('Filtering sequences compared with consensus sequences for best hits and add them to the groups', file = lf)
-    global comparelist #, grouplist #, consensusgroup
+    global comparelist2 #, grouplist #, consensusgroup
     templist = []
+    min_similar = args.similar_species/100
     outputfolder = args.outputfolder
     group_tempfile = os.path.join(outputfolder, group_filename).replace('.group', '.tmp')
     try:
@@ -834,11 +942,18 @@ def update_groups(group_filename, grouplist):
     for i, j in enumerate(templist[:-1]):
         if j[0] == templist[i+1][0]: # if first index number is the same
             if j[2] <= templist[i+1][2]: # if iden is lower or equal
-#                if float(j[2]) < similar:
                 j[2] = ''                # mark to remove
+            # elif float(j[2]) < similar:
+            #     j[2] = ''                # mark to remove
     templist = [i for i in templist if i[2] != ''] #only keep those with highest iden
+    templist = [i for i in templist if float(i[2]) >= similar] #only keep those 
     if len(templist) == 0:
         print(group_filename + '----> no sequences passed criteria')
+        if similar <= min_similar:
+            try:
+                os.remove(group_tempfile)
+            except FileNotFoundError:
+                pass
     else:
 #        print('--> Filtering sequences compared with consensus sequences for best hits and add them to the groups')
         print(group_filename + '----> ' + str(len(templist)) + ' sequences added to the groups')
@@ -855,29 +970,33 @@ def update_groups(group_filename, grouplist):
 #                print(x, file = lf)
                 
                 
-        for x in templist:   
+        for x in templist: 
             grouplist[int(x[1])].append(x[0])
     
     
-        for i,x in enumerate(grouplist):  # remove consensus from groups
-            grouplist[i] = [y for y in x if y.isdigit()]
+        for i,x in enumerate(grouplist):  # remove consensus from groups if new seq are added
+            if x[-1].isdigit(): # if the last item is a number, sequence has been added
+                grouplist[i] = [y for y in x if y.isdigit()]
      
         print(group_filename + '----> Making consensus for each group')
    
         for i,x in enumerate(grouplist):
-            consensuslist = []
-            for y in x:
-                consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
-            consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
-            consensus = l_median(consensuslist2)  # create consensuse sequence
-            grouplist[i].append(consensus)  # add consensus sequence to the group
+            if x[-1].isdigit(): # if the last item is a number, sequence has been added
+                consensuslist = []
+                if len(x) > 500: # if number of reads > 500, only take 500 for consensus
+                    x = random.sample(x, 500)
+                for y in x:
+                    consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
+                consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
+                consensus = l_median(consensuslist2)  # create consensus sequence
+                grouplist[i].append(consensus)  # add consensus sequence to the group
     
-    try:
-        os.remove(group_tempfile)
-    except FileNotFoundError:
-        pass
+        try:
+            os.remove(group_tempfile)
+        except FileNotFoundError:
+            pass
     
-    return comparelist, grouplist, templist
+    return comparelist2, grouplist, templist
 #==============================================================================
 def consensus_direction(consensuslist): #  check if all sequences are in the same direction (F or R)
     consensusset = set()
@@ -900,101 +1019,101 @@ def compare_consensus(grouplist):
 #    for i,[x] in enumerate(grouplist):  # add number to each group
 #        grouplist[i] = [i,x]
 #    grouplist = [i for i in grouplist if i]  # remove empty sublists    
-    position = 0
-    grouplist2 = grouplist.copy() # need copy to delete and extend items
-    y = 0 #position in first range
-    z = 0 #position in 2nd range
-    for position in range(position, len(grouplist)-1):
-        z = y
-        for position2 in range(position+1,len(grouplist)):
-            z +=1
-            A1 = grouplist[position]
-            A2 = grouplist[position2]
-            if len(A1[-1])*1.3 < len(A2[-1]) or len(A2[-1])*1.3 < len(A1[-1]):
-                pass  #don't compare if length of sequences differ to much
-            else:
-                idenlist = []
-                iden = distance(A1[-1],A2[-1])
-                idenlist.append(iden) # add iden to list
-                idenR = distance(A1[-1],compl_reverse(A2[-1]))
-                idenlist.append(idenR) # add idenR to list
-                idenlist.sort(reverse=True) # sort the list
-                iden = idenlist[0] # take the biggest value
-                if iden >= 0.96 : 
-                    grouplist2[position].extend(A2)
-#                    grouplist2[position2] = [] # mark for removal
-                elif iden >= 0.90:
-                    if len(A1) <= 5 or len(A2) <= 5:
+    a1 = len(grouplist)
+    a2 = 0
+    while a1 > a2:
+        a1 = len(grouplist)
+        position = 0
+        grouplist2 = grouplist.copy() # need copy to delete and extend items
+        y = 0 #position in first range
+        z = 0 #position in 2nd range
+        for position in range(position, len(grouplist)-1):
+            z = y
+            for position2 in range(position+1,len(grouplist)):
+                z +=1
+                A1 = grouplist[position]
+                A2 = grouplist[position2]
+                if len(A1[-1])*1.3 < len(A2[-1]) or len(A2[-1])*1.3 < len(A1[-1]):
+                    pass  #don't compare if length of sequences differ to much
+                else:
+                    idenlist = []
+                    iden = distance(A1[-1],A2[-1])
+                    idenlist.append(iden) # add iden to list
+                    idenR = distance(A1[-1],compl_reverse(A2[-1]))
+                    idenlist.append(idenR) # add idenR to list
+                    idenlist.sort(reverse=True) # sort the list
+                    iden = idenlist[0] # take the biggest value
+                    if iden >= 0.99 : 
                         grouplist2[position].extend(A2)
-#                        grouplist2[position2] = [] # mark for removal
-        y += 1  
-                 
-    grouplist = merge_groups(grouplist2)
-
-    for i,x in enumerate(grouplist):  # remove consensus from groups
-        grouplist[i] = [y for y in x if y.isdigit()]
+    #                    grouplist2[position2] = [] # mark for removal
+                    # elif iden >= 0.90:
+                    #     if len(A1) <= 5 or len(A2) <= 5:
+                    #         grouplist2[position].extend(A2)
+    #                        grouplist2[position2] = [] # mark for removal
+            y += 1  
+                     
+        grouplist = merge_groups(grouplist2)
     
-    for i,x in enumerate(grouplist):
-        consensuslist = []
-        for y in x:
-            consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
-        consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
-        consensus = l_median(consensuslist2)  # create consensuse sequence
-        grouplist[i].append(consensus)  # add consensus sequence to the group
-
-##                with open('consensusseq.txt', 'a') as cs:
-##                    print('>1\n' + str(A1[-1]) + '\n>2\n' + str(A2[-1]) + '\n' + 
-##                          str(iden) +' '+ str(len(A1)) +' '+ str(len(A2)), file = cs)
-#            elif iden < 0.90:
-#                iden = distance(A1[-1],compl_reverse(A2[-1]))
-#                if iden >= 0.90:
-#                    with open('consensusseq.txt', 'a') as cs:
-#                        print('>1\n' + str(A1[-1]) + '\n>2\n' + str(A2[-1]) + '\n' + 
-#                              str(iden) + ' reverse ' + str(len(A1)) +' '+ str(len(A2)), file = cs)
+        for i,x in enumerate(grouplist):  # remove consensus from groups
+            grouplist[i] = [y for y in x if y.isdigit()]
+        
+        for i,x in enumerate(grouplist):
+            consensuslist = []
+            if len(x) > 500: # if number of reads > 500, only take 500 for consensus
+                x = random.sample(x, 500)
+            for y in x:
+                consensuslist.append(comparelist[int(y)][1]) # get the sequence that matches the number
+            consensuslist2 = consensus_direction(consensuslist) # get all seq in same direction
+            consensus = l_median(consensuslist2)  # create consensuse sequence
+            grouplist[i].append(consensus)  # add consensus sequence to the group
+        
+        a2 = len(grouplist)
+        
     return grouplist
 #==============================================================================   
 def rest_reads(indexes, grouplist, group_filename):
     # compare remaining sequences with the consensussequence of the groups,
     # each time with lower similarity, until stable number of sequences in grouplist
-    global similar, comparelist
+    global similar, comparelist2
     MYLOCK = Lock()
     print(group_filename + '--> Comparing the rest of the sequences with the consensus sequences')
     print(group_filename + '----> similarity = ' + str(round(similar, 2)))
     process_consensuslist(indexes, grouplist, group_filename)
                 
 #                  
-    comparelist, grouplist, templist = update_groups(group_filename, grouplist)
+    comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
     min_similar = args.similar_species/100
     while similar >= min_similar: #0.85 is te laag
         while len(templist) > 0:
             process_consensuslist(indexes, grouplist, group_filename)
-            comparelist, grouplist, templist = update_groups(group_filename, grouplist)
-            grouplist = compare_consensus(grouplist) # compare consensusses with each other 
+            comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
+            if len(templist) > 0:
+                grouplist = compare_consensus(grouplist) # compare consensusses with each other 
         else:
             similar = similar - 0.01
             print(group_filename + '----> similarity = ' + str(round(similar, 2)))
-            process_consensuslist(indexes, grouplist, group_filename)
-            comparelist, grouplist, templist = update_groups(group_filename, grouplist)
+            # process_consensuslist(indexes, grouplist, group_filename)
+            comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
             grouplist = compare_consensus(grouplist) # compare consensusses with each other 
             while len(templist) > 0:
                 process_consensuslist(indexes, grouplist, group_filename)
-                comparelist, grouplist, templist = update_groups(group_filename, grouplist)
+                comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
           
     grouplist = compare_consensus(grouplist) # compare consensusses with each other 
 
     MYLOCK.acquire()
-    comparelist.sort(key=lambda x: x[3]) #sort list based on index number
-    for o, [rec_id, seq, scores, index] in enumerate(comparelist):
+    comparelist2.sort(key=lambda x: x[3]) #sort list based on index number
+    for o, [rec_id, seq, scores, index] in enumerate(comparelist2):
         for i, n in enumerate(grouplist):
             if str(index) in n:  # it belongs to a group
-                comparelist[o][2] = i      
+                comparelist2[o][2] = i      
     MYLOCK.release()
     return grouplist
 
 #==============================================================================
 def sort_genes(): # read the input file and sort sequences according to gene
     # remove temporary file if exists
-    global saved_comparelist    
+    global saved_comparelist, comparelist2    
     outputfolder = args.outputfolder
     try:
         filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
@@ -1008,10 +1127,16 @@ def sort_genes(): # read the input file and sort sequences according to gene
         read_file(infile)
     else:
         read_file(infile)
-        process_list(comparelist) 
+        process_list(comparelist2) 
+        
+        comparelist2 = list(set(([tuple(x) for sublist in comparelist2 for x in sublist]))) # make list out of list with sublists
+        comparelist2 = [list(x) for x in comparelist2]
+        comparelist2.sort(key=lambda x: x[3])
+        
     #    update_list(tempfile)
         with open(saved_comparelist, 'wb', buffering=0) as wf:
             pickle.dump(comparelist, wf)
+            pickle.dump(comparelist2, wf)
         with open('readme.txt', 'w') as rm:
             print('This folder contains 2 temporary files:', file = rm)
             print('- "infile"_compare.tmp = text file with similarity between numbered sequences.', file = rm)
@@ -1020,89 +1145,91 @@ def sort_genes(): # read the input file and sort sequences according to gene
             print('', file = rm)
             print('If you want to play with the "--similar_species_groups" or "--similar_species"', file = rm)
             print('parameters, you can save time if these files are kept here.', file = rm)
-            print('The "--species_only" option is used to do this.', file = rm)
+            print('The "-so --species_only" option is used to do this.', file = rm)
             print('', file = rm)
             print('Otherwise, these 2 files can be removed.', file = rm)
 #==============================================================================
 def sort_groups(): # read the gene groups and sort sequences according to species
-    global comparelist, resultlist, num_seq, saved_comparelist
-    nprocesses = args.nprocesses
+    global comparelist, comparelist2, resultlist, num_seq, saved_comparelist
     outputfolder = args.outputfolder
-    todoqueue = Queue()
+    with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
+        rf.write('amplicon_sorter version: ' + version) # write the version of the script in the file 
     try:
         with open(saved_comparelist, 'rb') as rf:
             comparelist = pickle.load(rf)
-        num_seq = len(comparelist)
+            comparelist2 = pickle.load(rf)
+        num_seq = len(comparelist2)
     except FileNotFoundError:
         pass 
     
-    try:
-        os.remove(os.path.join(outputfolder,'results.txt'))
+    # try:
+    #     os.remove(os.path.join(outputfolder,'results.txt'))
+    # except FileNotFoundError:
+    #     pass
+    
+    consensusfile = infile.replace('.fasta', '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta') # total consensusfile
+    try:  # remove  file if exists
+        os.remove(os.path.join(outputfolder, consensusfile))
     except FileNotFoundError:
-        pass
+        pass   
     
     update_list(tempfile)
                
     for dirpath, dirnames, filenames in os.walk(outputfolder):
         for name in filenames:
             if name.endswith('.group'):
-                todoqueue.put(name)                    
-    try:
-        process = [Process(target=sort, args=(todoqueue,)) for x in range(nprocesses)]
-        for p in process:
-            #ask the processes to stop when all files are handled
-            #"STOP" is at the very end of queue
-            todoqueue.put("STOP")
-        for p in process:
-            p.start()
-        for p in process:
-            p.join() 
-   
-    except KeyboardInterrupt:
-        print("Shutting processes down")
-       # Optionally try to gracefully shut down the worker processes here.
-        p.terminate()
-        p.join()  
+                sort(name)
+                
+#                todoqueue.put(name)  
+#  
+#    try:
+#        process = [Process(target=sort, args=(todoqueue,)) for x in range(nprocesses)]
+#        for p in process:
+#            #ask the processes to stop when all files are handled
+#            #"STOP" is at the very end of queue
+#            todoqueue.put("STOP")
+#        for p in process:
+#            p.start()
+#        for p in process:
+#            p.join() 
+#   
+#    except KeyboardInterrupt:
+#        print("Shutting processes down")
+#       # Optionally try to gracefully shut down the worker processes here.
+#        p.terminate()
+#        p.join()  
     with open(os.path.join(outputfolder,'results.txt'), 'r') as rf: # print info of groups at the end
         results = rf.readlines()
         for line in results:
             print(line.strip())
 #==============================================================================
-def sort(todoqueue): 
+def sort(group_filename): 
     global similar, comparelist
     outputfolder = args.outputfolder
-    consensusfile = infile.replace('.fasta', '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta') # total consensusfile
-    try:  # remove  file if exists
-        os.remove(os.path.join(outputfolder, consensusfile))
-    except FileNotFoundError:
-        pass 
-    for group_filename in iter(todoqueue.get, 'STOP'):    #do stuff until infile.get returns "STOP"            
-        try:  # remove temporary file if exists
-            filename = os.path.join(outputfolder, group_filename).replace('.group', '_*')
-            for x in glob.glob(os.path.join(outputfolder,filename)):
-                os.remove(x)      
-    #    sort_genes()
-  
-            time.sleep(1)
-        except FileNotFoundError:
-            pass
 
-        indexes, grouplist = read_indexes(group_filename)
+#    for group_filename in iter(todoqueue.get, 'STOP'):    #do stuff until infile.get returns "STOP"            
+    try:  # remove temporary file if exists
+        filename = os.path.join(outputfolder, group_filename).replace('.group', '_*')
+        for x in glob.glob(os.path.join(outputfolder,filename)):
+            os.remove(x)      
+#    sort_genes()
+  
+        time.sleep(1)
+    except FileNotFoundError:
+        pass
+
+    indexes, grouplist = read_indexes(group_filename)
+    if len(grouplist) == 0: # if there are no groups, no need to compare rest of sequences
+        print('--> Nothing to do')
+        filter_seq(group_filename, grouplist, indexes)
+        os.remove(os.path.join(outputfolder, group_filename))
+    else:
         similar = 0.95
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
 
-#==============================================================================
-"""
-
-- oplossing zoeken voor extentie inputfiles (fasta, fastq, fq, fa, ...)
-- testen om korte stukken seq te vergelijken of dat sneller gaat
--sequenties op het einde (in de cons.fasta) in volgorde van aantal zetten
--in outputfiles de sequenties vergelijken met de consensus, indien te veel verschil ze eruit gooien
-
-"""
-        
+     
         
         
     
@@ -1119,4 +1246,5 @@ if __name__ == '__main__':
         if args.histogram_only == True: # if only histogram is wanted
             pass
         else:
+            pass
             sort_groups()
