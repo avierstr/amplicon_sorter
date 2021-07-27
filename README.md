@@ -70,8 +70,13 @@ For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enou
 - Try to improve speed for comparison of sequences.
 - Try to fine tune sorting to species level.  If there are species in the sample that are more than 94% similar, the script has difficulties to separate them.  Species with a higher similarity are often grouped together and give a lower consensus sequence because it is the "average" of 2 or more closely related species.
 - Improve random sampling to sequences of the same length and not to all reads.
+- Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
 
 ### Release notes:
+
+2021/07/13:
+- speed improvement by changing allowed difference in length from 1.3 to 1.1 (less comparisons to be done)
+- little changes that improve speed a bit
 
 2021/05/28:
 - improvement on combining groups
