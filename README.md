@@ -73,6 +73,9 @@ For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enou
 - Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
 
 ### Release notes:
+2021/08/08:
+- speed improvement by changing allowed difference in length from 1.1 to 1.05 (less comparisons to be done) and 1.08 for comparison of consensus sequences
+- change default of `--similar_species_groups` from 0.92 to 0.93
 
 2021/07/13:
 - speed improvement by changing allowed difference in length from 1.3 to 1.1 (less comparisons to be done)
