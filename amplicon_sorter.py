@@ -33,7 +33,7 @@ from matplotlib.ticker import AutoMinorLocator
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-07-13'  # version of the script
+version = '2021-08-08'  # version of the script
 
 #==============================================================================
 #def levenshtein_distance(s1, s2):  # function to compare 2 sequences
@@ -100,7 +100,7 @@ def get_arguments():
                         help='Number of processors to use. Default=1')
     parser.add_argument('-sg', '--similar_genes', type = range_limited_float_type, required=False, default=60.0,
                         help='Similarity to sort genes in groups (value between 50 and 100). Default=60.0')
-    parser.add_argument('-ssg', '--similar_species_groups', type = range_limited_float_type, required=False, default=92.0 ,
+    parser.add_argument('-ssg', '--similar_species_groups', type = range_limited_float_type, required=False, default=93.0 ,
                         help='Similarity to CREATE species groups (value between 50 and 100). Default=92.0')
     parser.add_argument('-ss', '--similar_species', type = range_limited_float_type, required=False, default=85.0 ,
                         help='Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0')
@@ -118,7 +118,13 @@ def get_arguments():
     args = parser.parse_args()
     return args
 #==============================================================================    
-def distance(A1,A2):  # calculate the similarity of 2 sequences
+def distance(X1,X2):  # calculate the similarity of 2 sequences
+    if len(X1) > len(X2): # check which one is longer
+        A2 = X1
+        A1 = X2
+    else:
+        A1 = X1
+        A2 = X2
     if len(A1)*1.05 < len(A2): # if A1 is much shorter than A2, it influences the similarity
         idenprev = 0
         templist = []
@@ -349,7 +355,7 @@ def process_list(self):
                     z +=1
                     A1 = d[position]
                     A2 = d[position2]
-                    if len(A1[1])*1.1 < len(A2[1]):
+                    if len(A1[1])*1.05 < len(A2[1]):
                         pass  #don't compare if length of sequences differ to much
                     else:
                         todolist.append([A1,A2])
@@ -498,14 +504,14 @@ def update_list(tempfile):
                     templist.sort(key=lambda x: (int(x[1]), float(x[2]))) #sort list based on 2nd number (A2) and score 
                     for i, j in enumerate(templist[:-1]):
                         if j[1] == templist[i+1][1]: # if second index number is the same for the 2 next
-                            if j[2] <= templist[i+1][2]: # if iden is lower or equal => keep the 2 best
+                            if j[2] < templist[i+1][2]: # if iden is lower or equal => keep the 2 best
                 #                if float(j[2]) < similar:
                                 j[2] = ''                # mark to remove
                     templist = [i for i in templist if i[2] != ''] #only keep those with highest iden  
         templist.sort(key=lambda x: (int(x[1]), float(x[2]))) #sort list based on 2nd number (A2) and score 
         for i, j in enumerate(templist[:-1]):
             if j[1] == templist[i+1][1]: # if second index number is the same for the 2 next
-                if j[2] <= templist[i+1][2]: # if iden is lower or equal  => keep the 2 best
+                if j[2] < templist[i+1][2]: # if iden is lower or equal  => keep the 2 best
     #                if float(j[2]) < similar:
                     j[2] = ''                # mark to remove
         templist = [i for i in templist if i[2] != ''] #only keep those with highest iden  
@@ -625,7 +631,7 @@ def comp_consensus_groups(grouplist):
             consensus = l_median(consensuslist2)  # create consensuse sequence
             grouplist[i].append(consensus)  # add consensus sequence to the group 
             print(str(round(i/a1*100, 1)) + '% consensuses made', end='\r') 
-            
+        print('                                                ', end='\r') # to clear previous line completely    
         y = 0 #position in first range
         z = 0 #position in 2nd range
         for position in range(position, len(grouplist)-1):
@@ -634,7 +640,7 @@ def comp_consensus_groups(grouplist):
                 z +=1
                 A1 = grouplist[position]
                 A2 = grouplist[position2]
-                if len(A1[-1])*1.1 < len(A2[-1]) or len(A2[-1])*1.1 < len(A1[-1]):
+                if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
                     pass  #don't compare if length of sequences differ to much
                 else:
                     idenlist = []
@@ -691,6 +697,15 @@ def read_indexes(group_filename): # read index numbers from the the input file
                         templist.append(line)
     except FileNotFoundError:
         pass
+    
+    templist.sort(key=lambda x: (int(x[1]), float(x[2]))) #sort list based on 2nd number (A2) and score 
+    for i, j in enumerate(templist[:-1]):
+        if j[1] == templist[i+1][1]: # if second index number is the same for the 2 next
+            if j[2] < templist[i+1][2]: # if iden is lower or equal => keep the 2 best
+            # if float(j[2]) < 0.99:
+                j[2] = ''                # mark to remove
+    templist = [i for i in templist if i[2] != ''] #only keep those with highest iden  
+    
     
     grouplist = []  
     templist.sort(key=lambda x: (float(x[2]),int(x[0])),reverse=True) #sort list based on score and index number
@@ -837,7 +852,9 @@ def process_consensuslist(indexes, grouplist, group_filename):  # comparison of 
             A2 = consensuslist[y]
 #            print('A1 = ' + str(A1))
 #            print('A2 = ' + str(A2))
-            if len(A1[1])*0.91 <= len(A2[1]) <= len(A1[1])*1.70:
+            if len(A1[1])*1.05 < len(A2[1]) or len(A2[1])*1.05 < len(A1[1]):
+                pass
+            else:
                 todolist.append([A1,A2])
                 l +=1
                 if len(todolist) == 500000: # save in chuncks to save memory
@@ -1037,7 +1054,7 @@ def compare_consensus(grouplist):
                 z +=1
                 A1 = grouplist[position]
                 A2 = grouplist[position2]
-                if len(A1[-1])*1.1 < len(A2[-1]) or len(A2[-1])*1.1 < len(A1[-1]):
+                if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
                     pass  #don't compare if length of sequences differ to much
                 else:
                     idenlist = []
@@ -1047,7 +1064,7 @@ def compare_consensus(grouplist):
                     idenlist.append(idenR) # add idenR to list
                     idenlist.sort(reverse=True) # sort the list
                     iden = idenlist[0] # take the biggest value
-                    if iden >= 0.99 : 
+                    if iden >= 0.96 : 
                         grouplist2[position].extend(A2)
     #                    grouplist2[position2] = [] # mark for removal
                     # elif iden >= 0.90:
@@ -1087,7 +1104,7 @@ def rest_reads(indexes, grouplist, group_filename):
     comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
     min_similar = args.similar_species/100
     k += 1
-    while similar >= min_similar: #0.85 is te laag
+    while similar > min_similar: #0.85 is te laag
         while k <= 2:
             if len(templist) > 0:
                 process_consensuslist(indexes, grouplist, group_filename)
@@ -1099,9 +1116,10 @@ def rest_reads(indexes, grouplist, group_filename):
                 k = 3
         else:
             k = 0
-            similar = similar - 0.01
-            print(group_filename + '----> similarity = ' + str(round(similar, 2)))
-            # process_consensuslist(indexes, grouplist, group_filename)
+            similar = round(similar - 0.01, 2) 
+            print(group_filename + '----> similarity = ' + str(similar))
+            if len(templist) == 0:
+                process_consensuslist(indexes, grouplist, group_filename)
             comparelist2, grouplist, templist = update_groups(group_filename, grouplist)
             grouplist = compare_consensus(grouplist) # compare consensusses with each other 
             k += 1
@@ -1239,6 +1257,7 @@ def sort(group_filename):
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
 
+      
     
 #==============================================================================    
 if __name__ == '__main__':
@@ -1253,5 +1272,4 @@ if __name__ == '__main__':
         if args.histogram_only == True: # if only histogram is wanted
             pass
         else:
-            pass
             sort_groups()
