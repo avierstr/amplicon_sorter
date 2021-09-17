@@ -18,18 +18,31 @@ Requirements:
 `-i, --input`: Input file in fastq or fasta format (auto-detect). Make sure the inputfile is named as .fasta or .fastq because it replaces the extension in parts of the script.
 
 `-min, --minlength`: Minimum readlenght to process. Default=300
+
 `-max', '--maxlength`: Maximum readlenght to process. Default=No limit
+
 `-maxr', '--maxreads`: Maximum number of reads to process. Default=10000
+
 `-np', '--nprocesses`: Number of processors to use. Default=1
+
 `-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=55.0
+
 `-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=92.0
+
 `-ss', '--similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
+
 `-sc', '--similar_consensus`: Similarity to COMBINE groups based on the consensus sequence (value between 50 and 100). Default=96.0
+
 `-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
+
 `-ra', '--random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
+
 `-a', '--all`: Compare all selected reads with each other.  Only advised for a small number of reads (< 10000)
+
 `-o', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
+
 `-ho', '--histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
+
 `-so', '--species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.
 
 ### How it works (in short):
