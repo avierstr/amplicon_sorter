@@ -1237,7 +1237,8 @@ def sort(group_filename):
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
 
-#==============================================================================    
+#==============================================================================
+
 if __name__ == '__main__':
     args = get_arguments()
     save_arguments() # write all settings in the results.txt file
@@ -1247,7 +1248,6 @@ if __name__ == '__main__':
     saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
         '.fasta', '_comparelist.pickle')
     if args.species_only == True:
-        save_arguments() # write all settings in the results.txt file
         sort_groups()
     else:
         sort_genes()
