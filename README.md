@@ -78,6 +78,9 @@ For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enou
 - Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
 
 ### Release notes:
+2021/09/21:
+-fixed bug that is important for sorting closely related species. (was wrongfully removed in previous version)
+
 2021/09/11:
 - speed and memory improvement when sorting the compared reads for best matches
 - added option `--similar_consensus` 
@@ -147,6 +150,8 @@ For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enou
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
+
+
 
 
 
