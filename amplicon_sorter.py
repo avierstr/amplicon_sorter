@@ -34,7 +34,7 @@ from matplotlib.ticker import AutoMinorLocator
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-09-19'  # version of the script
+version = '2021-09-21'  # version of the script
 
 #==============================================================================
 def get_arguments():
@@ -116,6 +116,7 @@ def get_arguments():
 def save_arguments(): # save all settings in the result.txt file
     outputfolder = args.outputfolder
     with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
+        rf.write('-----------------------------------------------------------\n')
         rf.write('amplicon_sorter version: ' + version + '\n')  
         rf.write('-----------------------------------------------------------\n')
         rf.write('- date and time = ' + datetime.datetime.now().strftime(
@@ -973,18 +974,18 @@ def update_groups(group_filename, grouplist):
     except FileNotFoundError:
         pass
     # only keep the best values:
-    # a = len(templist)
-    # b = 0
-    # while a > b:
-    #     a = len(templist)
-    #     #sort list based on 2nd number (A2) and score
-    #     templist.sort(key=lambda x: (int(x[1]), float(x[2])))  
-    #     for i, j in enumerate(templist[:-1]):
-    #         if j[1] == templist[i+1][1]: # if second index number is the same 
-    #             if j[2] < templist[i+1][2]: # if iden is lower
-    #                 j[0] = ''                # mark to remove
-    #     templist = [j for j in templist if j[0] != ''] # remove from list  
-    #     b = len(templist)
+    a = len(templist)
+    b = 0
+    while a > b:
+        a = len(templist)
+        #sort list based on 1st number and score
+        templist.sort(key=lambda x: (int(x[0]), float(x[2])))  
+        for i, j in enumerate(templist[:-1]):
+            if j[0] == templist[i+1][0]: # if second index number is the same 
+                if j[2] < templist[i+1][2]: # if iden is lower
+                    j[0] = ''                # mark to remove
+        templist = [j for j in templist if j[0] != ''] # remove from list  
+        b = len(templist)
         
     templist2 = [i for i in templist if float(i[2]) >= similar] #only keep those 
     if len(templist2) == 0:
@@ -1237,8 +1238,8 @@ def sort(group_filename):
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
 
-#==============================================================================
 
+#==============================================================================    
 if __name__ == '__main__':
     args = get_arguments()
     save_arguments() # write all settings in the results.txt file
