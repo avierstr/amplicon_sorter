@@ -982,7 +982,7 @@ def update_groups(group_filename, grouplist):
         templist.sort(key=lambda x: (int(x[0]), float(x[2])))  
         for i, j in enumerate(templist[:-1]):
             if j[0] == templist[i+1][0]: # if second index number is the same 
-                if j[2] < templist[i+1][2]: # if iden is lower
+                if j[2] <= templist[i+1][2]: # if iden is lower or equal
                     j[0] = ''                # mark to remove
         templist = [j for j in templist if j[0] != ''] # remove from list  
         b = len(templist)
