@@ -87,6 +87,7 @@ process infile.fastq with default settings, save in folder outputfolder, run on 
 *Metagenetic sample with several amplicons between 600 and 3000 bp, unknown number of species, 30000 reads in the inputfile, one low abundant species (< 2% reads):*
 
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -ra -maxr 600000`
+
 By random sampling 20x the maximum number of reads, it is possible to find low abundant species.
 
 ### Todo:
