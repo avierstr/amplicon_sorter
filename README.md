@@ -3,6 +3,8 @@
 
 Sorts amplicons from Nanopore sequencing data based on similarity, creates groups with highly similar sequences and create the consensus sequence for each group of sequences.
 
+For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
+
 (Only works on Linux because it uses multiprocessing)
 
 Requirements:
