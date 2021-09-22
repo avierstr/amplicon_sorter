@@ -1,7 +1,8 @@
 
 # amplicon_sorter
 
-Sorts amplicons from Nanopore sequencing data based on similarity, creates groups with highly similar sequences and create the consensus sequence for each group of sequences.
+A tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
+The limit for separating closely related species within a sample is currently around 95 - 96%.
 
 For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
 
@@ -58,19 +59,30 @@ Requirements:
 
 
 ![amplicon_sorter](https://github.com/avierstr/amplicon_sorter/blob/master/ampliconsorter.jpg)
+### Workflow:
+
+Filter your inputfile for reads >= Q12 with NanoFilt ([https://github.com/wdecoster/nanofilt](https://github.com/wdecoster/nanofilt)) or other quality filtering software.  Use that Q12 inputfile for Amplicon_sorter. (Lower quality reads can be used but will result in longer processing time and a lower percentage of reads that will assigned to a species.
+
+Copy the Amplicon_sorter.py script in the same folder as your inputfile.
 
 ### Command examples:
+*Produce a read length histogram of your inputfile:*
+`python3 amplicon_sorter.py -i infile.fastq –o outputfolder -min 650 -max 750 -ho`: produce the readlength histogram of infile.fastq in folder outputfolder.  This gives you the information on the number of reads between 650 and 750 bp.
 
-`python3 amplicon_sorter.py -i inputset1.fastq -o set1 -ra -np 8 -min 600 -max 1000 -maxr 10000` : process file with default settings, save in folder set1, sample random reads, run on 8 processors, minimum length of reads = 600, max length of reads = 1000, use 10.000 reads.  
-For samples where you only have 1 or 2 amplicons, 10.000 reads is more then enough.  When you have samples with an unknown number of amplicons, it is better to increase the number of reads.  (see the `--random` option)
+*Sample with one species amplicon of 750 bp:*
+`python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 700 -max 800 -maxr 1000`
 
+process infile.fastq with default settings, save in folder outputfolder, run on 8 cores, minimum length of reads = 700, max length of reads = 800, use 1000 reads.  This will sample the first 1000 reads between 700 and 800 bp of the inputfile.  If you add the -ra (random) option to the command line, it will sample 1000 random reads between 700 and 800 bp.
 
-`python3 amplicon_sorter.py -i inputset1.fastq -ho`: only produce the readlength histogram of inputset1.fastq
+*Sample with 2 species: an amplicon of 700 bp and one of 1200 bp:*
+`python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 650 -max 1250 -maxr 2000`  
 
-### My experience so far:
+*Metagenetic sample with several amplicons between 600 and 3000 bp, unknown number of species, 30000 reads in the inputfile:*
+`python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -maxr 30000`
 
--   Guppy produces reads with Q-score >=7 by default. It is better to use reads with Q-score >= 12 because then there are less reads to compare.  At the end, using reads with Q-score >=7 gives the same results (consensus accuracy), but more reads can not be assigned to a group.  Similarity of the consensus with Blast references is between 98.2 and 100%.  All errors were found in homopolymer regions.  
--   10000 reads (`--maxreads`) on 12 cores takes several hours to finish.
+*Metagenetic sample with several amplicons between 600 and 3000 bp, unknown number of species, 30000 reads in the inputfile, one low abundant species (< 2% reads):*
+`python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -ra -maxr 600000`
+By random sampling 20x the maximum number of reads, it is possible to find low abundant species.
 
 ### Todo:
 
