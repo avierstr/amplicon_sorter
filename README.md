@@ -67,20 +67,25 @@ Copy the Amplicon_sorter.py script in the same folder as your inputfile.
 
 ### Command examples:
 *Produce a read length histogram of your inputfile:*
+
 `python3 amplicon_sorter.py -i infile.fastq –o outputfolder -min 650 -max 750 -ho`: produce the readlength histogram of infile.fastq in folder outputfolder.  This gives you the information on the number of reads between 650 and 750 bp.
 
 *Sample with one species amplicon of 750 bp:*
+
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 700 -max 800 -maxr 1000`
 
 process infile.fastq with default settings, save in folder outputfolder, run on 8 cores, minimum length of reads = 700, max length of reads = 800, use 1000 reads.  This will sample the first 1000 reads between 700 and 800 bp of the inputfile.  If you add the -ra (random) option to the command line, it will sample 1000 random reads between 700 and 800 bp.
 
 *Sample with 2 species: an amplicon of 700 bp and one of 1200 bp:*
+
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 650 -max 1250 -maxr 2000`  
 
 *Metagenetic sample with several amplicons between 600 and 3000 bp, unknown number of species, 30000 reads in the inputfile:*
+
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -maxr 30000`
 
 *Metagenetic sample with several amplicons between 600 and 3000 bp, unknown number of species, 30000 reads in the inputfile, one low abundant species (< 2% reads):*
+
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -ra -maxr 600000`
 By random sampling 20x the maximum number of reads, it is possible to find low abundant species.
 
