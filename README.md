@@ -1,7 +1,7 @@
 
 # amplicon_sorter
 
-A tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
+Amplicon sorter is a tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
 The limit for separating closely related species within a sample is currently around 95 - 96%.
 
 For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
@@ -89,6 +89,15 @@ process infile.fastq with default settings, save in folder outputfolder, run on 
 `python3 amplicon_sorter.py -i infile.fastq -o outputfolder -np 8 -min 550 -max 3050 -ra -maxr 600000`
 
 By random sampling 20x the maximum number of reads, it is possible to find low abundant species.
+
+### Parameters depending on the basecaller and flow cell settings:
+
+Guppy v5.xx has a High Accuracy (HAC) and Super Accuracy (SupHAC) option to do the basecalling and sequencing is possible on a 9.4.1 and R10 type of flow cell.
+
+If you are working with species that are more than 95 – 96% similar, it is important to change or finetune some settings of Amplicon_sorter:
+
+ - `--similar_species_groups`: this is used to create species groups.  The script is looking for the highest similarities between species and uses those to create species groups.  When a better basecaller or flow cell is used, the higher this value can be. By default, the setting to create groups is 93% which is only a small portion of the reads with the HAC data, but a big part of the reads with the SupHAC data.  If you increase that value for HAC data, you will find less species in the sample.  If you decrease the value, it will result in more groups of the same species.  For **SupHAC and/or R10 data**, it is better to **increase** the value **to 94**% (or more?).
+ - `--similar_consensus`: this parameter is used to merge species groups if the consensus is more than 96% (default for HAC) similar.  When you increase this value, you will get more groups with the same species that are not merged.  When decreasing this value, it is possible that closely related species are merged in one group.  For the **SupHAC and/or R10 data**, this value can be **increased to 98**%.
 
 ### Todo:
 
