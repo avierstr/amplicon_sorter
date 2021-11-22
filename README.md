@@ -28,9 +28,9 @@ Requirements:
 
 `-np', '--nprocesses`: Number of processors to use. Default=1
 
-`-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=55.0
+`-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=80.0
 
-`-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=92.0
+`-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=Estimate
 
 `-ss', '--similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
 
@@ -96,8 +96,8 @@ Guppy v5.xx has a High Accuracy (HAC) and Super Accuracy (SupHAC) option to do t
 
 If you are working with species that are more than 95 – 96% similar, it is important to change or finetune some settings of Amplicon_sorter:
 
- - `--similar_species_groups`: this is used to create species groups.  The script is looking for the highest similarities between species and uses those to create species groups.  When a better basecaller or flow cell is used, the higher this value can be. By default, the setting to create groups is 93% which is only a small portion of the reads with the HAC data, but a big part of the reads with the SupHAC data.  If you increase that value for HAC data, you will find less species in the sample.  If you decrease the value, it will result in more groups of the same species.  For **SupHAC and/or R10 data**, it is better to **increase** the value **to 94**% (or more?).
- - `--similar_consensus`: this parameter is used to merge species groups if the consensus is more than 96% (default for HAC) similar.  When you increase this value, you will get more groups with the same species that are not merged.  When decreasing this value, it is possible that closely related species are merged in one group.  For the **SupHAC and/or R10 data**, this value can be **increased to 98**%.
+ - `--similar_species_groups`: this is used to create species groups.  The script is looking for the highest similarities between species and uses those to create species groups.  When a better basecaller or flow cell is used, the higher this value can be. ~~By default, the setting to create groups is 93% which is only a small portion of the reads with the HAC data, but a big part of the reads with the SupHAC data.  If you increase that value for HAC data, you will find less species in the sample.  If you decrease the value, it will result in more groups of the same species.  For **SupHAC and/or R10 data**, it is better to **increase** the value **to 94**% (or more?).~~  From Amplicon_sorter version 2021-11-16 and later, when no value is entered (default), the script estimates this value based on the dataset.  
+ - `--similar_consensus`: this parameter is used to merge species groups if the consensus is more than 96% (default for HAC) similar.  When you increase this value, you will get more groups from the same species that are not merged.  When decreasing this value, it is possible that closely related species are merged in one group.  For the **SupHAC and/or R10 data**, this value can be **increased to 98**%.
 
 ### Todo:
 
@@ -107,8 +107,15 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 - Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
 
 ### Release notes:
+
+2021/11/16:
+- fixed rarely occurring bug
+- program checks if a newer version of Amplicon_sorter is available.
+- fixed bug when entering a "path/infile.fastq" as input.  The program crashed halfway with an error.  Now it is possible to use a path as input.
+- changed the default for `--similar_species_groups`: the programs estimates the value from the dataset instead of the default value of 0.93.
+
 2021/09/21:
--fixed bug that is important for sorting closely related species. (was wrongfully removed in previous version)
+- fixed bug that is important for sorting closely related species. (was wrongfully removed in previous version)
 
 2021/09/11:
 - speed and memory improvement when sorting the compared reads for best matches
@@ -179,8 +186,3 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
-
-
-
-
-
