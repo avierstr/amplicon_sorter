@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -31,11 +32,46 @@ import argparse
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import AutoMinorLocator
+import urllib.request
+import re
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-09-21'  # version of the script
+version = '2021-11-16'  # version of the script
 
+#==============================================================================
+def check_version(version):
+    try:   
+        link = urllib.request.urlopen('https://github.com/avierstr/amplicon_sorter'
+                                      '/blob/master/amplicon_sorter.py').read()
+        # find the version-date part of the last version on the webpage
+        datepart = re.compile(r'(version</span>.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
+        x = datepart.search(str(link))
+        # the 2nd group of the search is the date
+        latest_version = x.group(2)
+        # compare the date of this version with the version on the webpage
+        if version < latest_version:
+            # download latest version
+            urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
+                                   'amplicon_sorter/master/amplicon_sorter.py')
+            urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr'
+                                       '/amplicon_sorter/master/amplicon_sorter.py',
+                                       'amplicon_sorter_new.py')
+            print('\n =====================================================\n'
+                  '| NEW VERSION OF AMPLICON_SORTER AVAILABLE            |\n'
+                  '| https://github.com/avierstr/amplicon_sorter         |\n'
+                  '| Downloaded latest version as amplicon_sorter_new.py |\n'
+                  '| Press ctrl-c to exit                                |\n'
+                  ' =====================================================\n')
+            t = 10
+            while t > 0:
+                print('Will continue in ' + str(t) + ' seconds...', end='\r')
+                time.sleep(1)
+                t -= 1
+            # to clear previous line completely   
+            print('                                                ', end='\r') 
+    except:
+        pass
 #==============================================================================
 def get_arguments():
     
@@ -83,9 +119,9 @@ def get_arguments():
                         help='Similarity to sort genes in groups (value between\
                             50 and 100). Default=80.0')
     parser.add_argument('-ssg', '--similar_species_groups', 
-                        type = range_limited_float_type, required=False, default=93.0,
+                        type = range_limited_float_type, required=False, 
                         help='Similarity to CREATE species groups (value between\
-                            50 and 100). Default=93.0')
+                            50 and 100). Default=estimate value from data')
     parser.add_argument('-ss', '--similar_species', type = range_limited_float_type, 
                         required=False, default=85.0 ,
                         help='Similarity to ADD sequences to a species group\
@@ -139,7 +175,6 @@ def save_arguments(): # save all settings in the result.txt file
         rf.write('- species_only = ' + str(args.species_only) + '\n')
         rf.write('-----------------------------------------------------------\n')
 #==============================================================================  
-  
 def distance(X1,X2):  # calculate the similarity of 2 sequences
     if len(X1) > len(X2): # check which one is longer
         A2 = X1
@@ -248,7 +283,7 @@ def figure(readlengthlist, total_num_seq):
     print('Saved "' + figname + '" as a Read Length Histogram.')
 #==============================================================================
 def read_file(self): # read the inputfile
-    with open(infile, 'r') as inf: # check the fileformat
+    with open(os.path.join(infolder,infile), 'r') as inf: # check the fileformat
         line = inf.readline()
         if line[0] == '>':
             fileformat = 'fasta'
@@ -265,7 +300,7 @@ def read_file(self): # read the inputfile
     readlengthlist = []
     ti = 0  # total number of reads in the file
     print('Reading ' + self)
-    inputfile = open(self, "r")
+    inputfile = open(os.path.join(infolder,infile), "r")
     for record in SeqIO.parse(inputfile, fileformat):
         ti += 1
         readlengthlist.append(len(record.seq)) # for figure
@@ -511,8 +546,47 @@ def similarity(todoqueue): # process files for similarity
         templist =[]
         MYLOCK.release()
 #==============================================================================
+def SSG(tempfile):  #calculate the N6
+    # comparable with the N50 in sequence assembly, here used to estimate ssg value
+    print('Estimating the ssg value for this dataset')
+    t = 0
+    totalsimil = 0
+    tempdict = {}
+    with open(tempfile, 'r') as tf:
+        for line in tf:
+            simil = float(line.strip().split(':')[2])
+            if simil in tempdict: # if that simil value already exists in dict
+                tempdict[simil] += 1
+            else:
+                tempdict[simil] = 1
+            t += 1
+            totalsimil += simil # count total value of similarities
+    
+    templist = list(tempdict.keys())
+    templist.sort(reverse=True)
+    b = int(totalsimil*0.06) # this value 0.06 looks ok for several testfiles
+    N6 = 0
+    for x in templist:
+        N6 += tempdict[x]*x # simil * number of occurances
+        if N6 >= b:
+            print('-> Estimated ssg = ' + str(int(x*100)))
+            return int(x*100)
+            break
+#==============================================================================
 def update_list(tempfile): # create gene-groups from compared sequences
     outputfolder = args.outputfolder
+    if args.similar_species_groups == 'Estimate':
+        estimated_ssg = SSG(tempfile) # estimate ssg value
+        args.similar_species_groups=estimated_ssg
+        with open(os.path.join(outputfolder,'results.txt'), 'r') as rf:
+            c = rf.readlines()
+            # find position of text
+            d = c.index('- similar_species_groups = Estimate\n')
+            # replace text
+            c[d] = '- similar_species_groups = ' + str(estimated_ssg) + ' (Estimated)\n'
+        with open(os.path.join(outputfolder,'results.txt'), 'w') as rf:
+            for line in c:
+                rf.write(line)
     print('Filtering compared sequences for best hits and create groups')
     global consensusgroup, num_seq 
     templist = []
@@ -582,7 +656,7 @@ def update_list(tempfile): # create gene-groups from compared sequences
     print(str(grouped_seq) + '/' + str(num_seq) + ' sequences assigned in groups (' 
           + str(round(grouped_seq*100/num_seq, 2)) + '%)')
 
-    return grouplist#, consensusgroup  
+    return grouplist, args 
 #==============================================================================
 def merge_groups(grouplist):
     a1 = len(grouplist)
@@ -691,7 +765,8 @@ def read_indexes(group_filename): # read index numbers from the the group file
         print('reading ' + group_filename + ' containing ' + str(len(indexes)) 
               + ' sequences.')
     except FileNotFoundError:
-        pass
+        print('Can not find ' + group_filename)
+        sys.exit()
     templist = []
     try:
         with open(tempfile, 'r') as tf:
@@ -758,7 +833,7 @@ def read_indexes(group_filename): # read index numbers from the the group file
 def filter_seq(group_filename, grouplist, indexes):
     # filter sequences: put the sequences with high similarity in separate files.
     # Sequences of the same species with the same gene should be in one file.
-    with open(infile, 'r') as inf: # check the fileformat
+    with open(os.path.join(infolder, infile), 'r') as inf: # check the fileformat
         line = inf.readline()
         if line[0] == '>':
             fileformat = 'fasta'
@@ -774,7 +849,8 @@ def filter_seq(group_filename, grouplist, indexes):
     global comparelist2 
     MYLOCK.acquire()
     if fq == True:
-        record_dict = SeqIO.index(infile, 'fastq')  # index the input fastq file
+        # index the input fastq file
+        record_dict = SeqIO.index(os.path.join(infolder, infile), 'fastq')  
     for rec_id, seq, scores, index in comparelist2:
         if str(index) in indexes:
             if scores == 'u':  # sequences that have no similarity with others
@@ -832,13 +908,19 @@ def filter_seq(group_filename, grouplist, indexes):
             elif y.isdigit():
                 t += 1 # count number of sequences in group
         with open(os.path.join(outputfolder, 'results.txt'), 'a') as rf:
-            rf.write('--> ' + str(os.path.split(outputfile)[1]) + ' contains ' 
-                     + str(t) + ' sequences (' + 
-                     str(round((len(x)-1)*100/len(indexes), 2)) + '%)\n')
+            try:
+                rf.write('--> ' + str(os.path.split(outputfile)[1]) + ' contains ' 
+                         + str(t) + ' sequences (' + 
+                         str(round((len(x)-1)*100/len(indexes), 2)) + '%)\n')
+            except ZeroDivisionError:
+                pass
     with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
-        rf.write(str(grouped_seq) + '/' + str(len(indexes)) + 
-                 ' sequences assigned in groups for ' + group_filename + 
-                 ' (' + str(round(grouped_seq*100/len(indexes), 2)) + '%)\n')
+        try:
+            rf.write(str(grouped_seq) + '/' + str(len(indexes)) + 
+                     ' sequences assigned in groups for ' + group_filename + 
+                     ' (' + str(round(grouped_seq*100/len(indexes), 2)) + '%)\n')
+        except ZeroDivisionError:
+            pass
     MYLOCK.release()
 #==============================================================================
 def process_consensuslist(indexes, grouplist, group_filename):  
@@ -1126,11 +1208,14 @@ def rest_reads(indexes, grouplist, group_filename):
             print(group_filename + '----> similarity = ' + str(similar))
             if len(templist) == 0:
                 process_consensuslist(indexes, grouplist, group_filename)
-            comparelist2, grouplist, templist, templist2 = update_groups(group_filename, 
-                                                                         grouplist)
-            grouplist = compare_consensus(grouplist) # compare consensusses with each other 
-            k += 1
-          
+                comparelist2, grouplist, templist, templist2 = update_groups(
+                    group_filename, grouplist)
+                # grouplist = compare_consensus(grouplist) # compare consensusses with each other 
+                k += 1
+            else: 
+                comparelist2, grouplist, templist, templist2 = update_groups(
+                    group_filename, grouplist)
+                k += 1
     grouplist = compare_consensus(grouplist) # compare consensusses with each other 
 
     MYLOCK.acquire()
@@ -1237,22 +1322,27 @@ def sort(group_filename):
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
-
-
 #==============================================================================    
 if __name__ == '__main__':
-    args = get_arguments()
-    save_arguments() # write all settings in the results.txt file
-    infile = args.input
-    tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
-                                                                '_compare.tmp')
-    saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
-        '.fasta', '_comparelist.pickle')
-    if args.species_only == True:
-        sort_groups()
-    else:
-        sort_genes()
-        if args.histogram_only == True: # if only histogram is wanted
-            pass
-        else:
+    try:
+        args = get_arguments()
+        check_version(version)
+        if args.similar_species_groups is None:
+            args.similar_species_groups = 'Estimate'
+        save_arguments() # write all settings in the results.txt file
+        infolder_file = args.input
+        infolder, infile = os.path.split(os.path.realpath(infolder_file))
+        tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
+                                                                    '_compare.tmp')
+        saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
+            '.fasta', '_comparelist.pickle')
+        if args.species_only == True:
             sort_groups()
+        else:
+            sort_genes()
+            if args.histogram_only == True: # if only histogram is wanted
+                pass
+            else:
+                sort_groups()
+    except KeyboardInterrupt:
+        sys.exit()
