@@ -13,14 +13,19 @@ For c implementation of Levenshtein:
     sudo apt-get install python3-dev
     (needed: python3-setuptools, python3-pip, python3-wheel)
     python3 -m pip install python-Levenshtein
+Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) 
+distance:
+    https://pypi.org/project/edlib/#description
+    python3 -m pip install edlib
 
 """
 from Bio import SeqIO
 import multiprocessing
 from multiprocessing import Process, Lock, Queue
 from threading import Thread
-from Levenshtein import distance as l_distance
+# from Levenshtein import distance as l_distance
 from Levenshtein import median as l_median
+import edlib # faster implementation than Levenshtein for seq longer than 200 bp 
 import os
 import sys
 import random
@@ -29,15 +34,12 @@ import datetime
 import glob
 import pickle
 import argparse
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-from matplotlib.ticker import AutoMinorLocator
 import urllib.request
 import re
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-11-16'  # version of the script
+version = '2021-12-01'  # version of the script
 
 #==============================================================================
 def check_version(version):
@@ -51,16 +53,18 @@ def check_version(version):
         latest_version = x.group(2)
         # compare the date of this version with the version on the webpage
         if version < latest_version:
+            version_name = 'amplicon_sorter_' + latest_version + '.py' 
             # download latest version
             urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
                                    'amplicon_sorter/master/amplicon_sorter.py')
             urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr'
                                        '/amplicon_sorter/master/amplicon_sorter.py',
-                                       'amplicon_sorter_new.py')
+                                       version_name)
             print('\n =====================================================\n'
                   '| NEW VERSION OF AMPLICON_SORTER AVAILABLE            |\n'
                   '| https://github.com/avierstr/amplicon_sorter         |\n'
-                  '| Downloaded latest version as amplicon_sorter_new.py |\n'
+                  '| Downloaded latest version as:                       |\n' 
+                  '|      ' + version_name + '                  |\n'
                   '| Press ctrl-c to exit                                |\n'
                   ' =====================================================\n')
             t = 10
@@ -98,7 +102,7 @@ def get_arguments():
             return string
         else:
             string = os.path.join(os.getcwd(), string)
-            os.mkdir(string) # create the folder
+            os.makedirs(string) # create the folder
             return string
             
     parser = argparse.ArgumentParser(description='AmpliconSorter: Sort amplicons\
@@ -188,7 +192,9 @@ def distance(X1,X2):  # calculate the similarity of 2 sequences
         templist = []
         for a in range(0, len(A2) - len(A1),2): 
             e = int(len(A1)*1.015) # leave room for inserts
-            distance = l_distance(A1, A2[a:e])
+            s = edlib.align(A1, A2[a:e], task='distance')
+            distance = s['editDistance']
+            # distance = l_distance(A1, A2[a:e])
             iden = round(1 - distance/len(A2[a:e]),3)
             if iden >= idenprev:
                 templist.append([a,iden])
@@ -198,7 +204,9 @@ def distance(X1,X2):  # calculate the similarity of 2 sequences
         templist.sort(key=lambda x: x[1]) # sort according to value
         a, iden = templist[-1] # get best value
     else:
-        distance = l_distance(A1, A2)
+        # distance = l_distance(A1, A2)
+        s = edlib.align(A1, A2, task='distance')
+        distance = s['editDistance']
         iden = round(1 - distance/len(A2),3)
         
     return iden
@@ -221,6 +229,10 @@ def N50(readlengthlist, bases):  #calculate the N50
             break
 #==============================================================================
 def figure(readlengthlist, total_num_seq):
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as ticker
+    from matplotlib.ticker import AutoMinorLocator
+    
     bases = sum(readlengthlist)
     length_N50 = N50(readlengthlist, bases) 
     try:
@@ -383,8 +395,9 @@ def read_file(self): # read the inputfile
         num_seq = sum(len(x) for x in comparelist2) # number of sample reads
         print('--> There are ' + str(total_num_seq) + ' sequences between ' + 
               str(minlength) + ' and ' + str(maxlength) + 'bp')
+        sys.exit()
     else:
-        figure(readlengthlist, total_num_seq) # make a read length histogram 
+        # figure(readlengthlist, total_num_seq) # make a read length histogram 
         num_seq = sum(len(x) for x in comparelist2) # number of sample reads
         if maxlength is None:
             print(sentence + str(num_seq) + ' out of ' + str(total_num_seq) + 
@@ -463,14 +476,14 @@ def process_list(self): # make files to do comparisons
     def feeder(): # function to feed the queue in parts to save memory
         global len_todolist
         while len_todolist == 0:  #start feeding when it is still making todolist
-            time.sleep(30)
+            time.sleep(5)
             for dirpath, dirnames, filenames in os.walk(outputfolder):
                 filenames = [i for i in filenames if i.endswith('.todo')]
                 filenames.sort(key=lambda x: os.path.getmtime(os.path.join(
                     outputfolder, x))) #sort on modification time
                 filenames = filenames[:-1] # don't include last file, possible 
                                            # still being written to disk
-                for name in filenames[:3]: # only take a few files in memory
+                for name in filenames[:]: # only take a few files in memory
                     print('processing: ' + name)
                     with open(os.path.join(outputfolder, name), 'rb') as rf:
                         sublist = pickle.load(rf)
@@ -509,7 +522,7 @@ def process_list(self): # make files to do comparisons
     
     Thread(target = queuer).start()
     Thread(target = feeder).start()
-    time.sleep(30)
+    time.sleep(10)
     c = Thread(target = consumer)
     c.start()
     c.join() # wait until c has finished its work
@@ -629,15 +642,16 @@ def update_list(tempfile): # create gene-groups from compared sequences
     
     grouplist = []  
     # Make groups with sequences with high similarity
-    for x in templist:   
+    for x in templist:  
         for s in grouplist: 
             if len({x[0], x[1]}.intersection(s)) > 0:
-                s.update([x[0], x[1]])
+                s.update({x[0], x[1]})
                 break    
         else:
             grouplist.append({x[0], x[1]})
- 
+    
     grouplist = merge_groups(grouplist)
+
     # extra comparison to check of same genes in files
     grouplist = comp_consensus_groups(grouplist) 
 
@@ -662,7 +676,7 @@ def merge_groups(grouplist):
     a1 = len(grouplist)
     a2 = 0
     print('--> Number of groups before merge: ' + str(a1)) 
-    grouplist = [list(i) for i in grouplist]  # make list of the groupsets
+    grouplist = [set(i) for i in grouplist]  # make set of the grouplists
     while a1 > a2:
         a1 = len(grouplist) 
         y = 0 #position in first range
@@ -675,12 +689,12 @@ def merge_groups(grouplist):
                 A1 = grouplist[position]
                 A2 = grouplist[position2]
                 # check if numbers occur in other groups
-                if len((set(A1)).intersection((set(A2)))) > 0: 
-                    grouplist[position].extend(A2)
-                    grouplist[position2] = [] # mark for removal
+                if len(A1.intersection(A2)) > 0: 
+                    grouplist[position] = grouplist[position].union(A2)
+                    grouplist[position2].clear() # mark for removal
             y += 1 
-        # remove empty sublists
-        grouplist = [list(set(i)) for i in grouplist if len(i) > 0]  
+        # remove empty subsets
+        grouplist = [i for i in grouplist if len(i) > 0]  
         a2 = len(grouplist)
     print('--> Number of groups after merge: ' + str(a2)) 
     
@@ -691,6 +705,7 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
     comparelist.sort(key=lambda x: x[3]) # sort list based on index number
                                          # must be done for option '-all' sequences !
     print('-> Merging based on consensus of 50 reads per group') 
+    grouplist = [list(i) for i in grouplist]  # make list of the groupsets
     a1 = len(grouplist)
     a2 = 0
     while a1 > a2:
@@ -1234,7 +1249,8 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
     try:
         filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
         for x in glob.glob(os.path.join(outputfolder, filename)):
-            os.remove(x)
+            if not x.endswith(".pdf"): # don't remove readlength histogram
+                os.remove(x)
         time.sleep(1)
     except FileNotFoundError:
         pass
@@ -1250,7 +1266,7 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
         comparelist2 = [list(x) for x in comparelist2]
         comparelist2.sort(key=lambda x: x[3])
         
-        with open(saved_comparelist, 'wb', buffering=0) as wf:
+        with open(saved_comparelist, 'wb') as wf:
             pickle.dump(comparelist, wf)
             pickle.dump(comparelist2, wf)
         with open('readme.txt', 'w') as rm:
@@ -1322,7 +1338,8 @@ def sort(group_filename):
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
-#==============================================================================    
+
+#==============================================================================  
 if __name__ == '__main__':
     try:
         args = get_arguments()
@@ -1340,9 +1357,6 @@ if __name__ == '__main__':
             sort_groups()
         else:
             sort_genes()
-            if args.histogram_only == True: # if only histogram is wanted
-                pass
-            else:
-                sort_groups()
+            sort_groups()
     except KeyboardInterrupt:
         sys.exit()
