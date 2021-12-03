@@ -13,6 +13,7 @@ Requirements:
 -   Python 3
 -   python3-dev, python3-setuptools, python3-pip, python3-wheel (`sudo apt-get install python3-dev python3-setuptools python3-pip python3-wheel`)
 -   c-implementation of Levenshtein: [https://pypi.org/project/python-Levenshtein/](https://pypi.org/project/python-Levenshtein/) (`python3 -m pip install python-Levenshtein`)
+- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`)
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
 
@@ -108,6 +109,12 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2021/12/01:
+- major speed improvement by using the edlib library to do the comparison between sequences (see requirements for installation) (first tests between 5 - 10 x faster).
+- minor speed increase in merging groups (4 x).
+- bugfix when non existing path was given as output folder.  Now a multilevel path can be given as input and output.
+- creation of read length histogram `-ho, --histogram_only` is now optional, no longer default.
+
 2021/11/16:
 - fixed rarely occurring bug
 - program checks if a newer version of Amplicon_sorter is available.
@@ -186,3 +193,8 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
+
+
+
+
+
