@@ -17,6 +17,8 @@ Lightweight, super fast C/C++ library for sequence alignment using edit (Levensh
 distance:
     https://pypi.org/project/edlib/#description
     python3 -m pip install edlib
+https://maxbachmann.github.io/Levenshtein/installation.html
+    python3 -m pip install edlib
 
 """
 from Bio import SeqIO
@@ -39,8 +41,7 @@ import re
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-12-01'  # version of the script
-
+version = '2021-12-19'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -412,9 +413,9 @@ def process_list(self): # make files to do comparisons
     global comparelist2, len_todolist
     nprocesses = args.nprocesses
     # compare 1 with 2,3,4,5,...; compare 2 with 3,4,5,... compare 3 with 4,5,...
-    chunk = 500000  # split size of the chunks to feed the multiprocessing queue
+    chunk = 2000000  # split size of the chunks to feed the multiprocessing queue
     len_todolist = 0
-    todoqueue = Queue(maxsize = 2)
+    todoqueue = Queue(maxsize = 2) # max number in queue
     outputfolder = args.outputfolder
     try:  # remove temporary file if exists
         for x in glob.glob(os.path.join(outputfolder, '*.todo')):
@@ -459,7 +460,7 @@ def process_list(self): # make files to do comparisons
                     filenames = [i for i in filenames if i.endswith('.todo')]
                 while len(filenames) > 20: # limit numbers of temporary files,
                                            # it can fill a harddisk !
-                    time.sleep(120)  
+                    time.sleep(10)  
                     for dirpath, dirnames, filenames in os.walk(outputfolder):
                         filenames = [i for i in filenames if i.endswith('.todo')]
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
@@ -609,20 +610,21 @@ def update_list(tempfile): # create gene-groups from compared sequences
         with open(tempfile, 'r') as tf:
             for line in tf:
                 e = line.strip().split(':')[:3]
-                if e[1] in tempdict:
-                    tempdict[e[1]].append(e)
+                a = e[1]
+                if a in tempdict:
+                    tempdict[a].append(e)
                     # sort list based on 2nd number (A2) and score)
-                    tempdict[e[1]].sort(key=lambda x: (int(x[1]), float(x[2]))) 
-                    for i, j in enumerate(tempdict[e[1]][:-1]):
+                    tempdict[a].sort(key=lambda x: (int(x[1]), float(x[2]))) 
+                    for i, j in enumerate(tempdict[a][:-1]):
                         # if second index number is the same for the next item
-                        if j[1] == tempdict[e[1]][i+1][1]: 
+                        if j[1] == tempdict[a][i+1][1]: 
                             # if iden is lower: keep the best
-                            if j[2] < tempdict[e[1]][i+1][2]: 
+                            if j[2] < tempdict[a][i+1][2]: 
                                 j[0] = ''  # mark to remove
                     # remove those lower values from the list 
-                    tempdict[e[1]] = [i for i in tempdict[e[1]] if i[0] != ''] 
+                    tempdict[a] = [i for i in tempdict[a] if i[0] != ''] 
                 else:
-                    tempdict[e[1]] = [e]
+                    tempdict[a] = [e]
                 t += 1
                 if t % 1000000 == 0: 
                     print(str(t) + ' filtered', end='\r')
@@ -640,9 +642,15 @@ def update_list(tempfile): # create gene-groups from compared sequences
         print('--------------------------------------------------------------------------')
         sys.exit()
     
-    grouplist = []  
+    print('Creating gene groups')
+    grouplist = [] 
+    q = len(templist)
+    r = 0
     # Make groups with sequences with high similarity
-    for x in templist:  
+    for x in templist:
+        r += 1  # give indication how much is done
+        if r % 10000 == 0:
+            print(str(round(r/q*100, 1)) + '% done', end='\r')
         for s in grouplist: 
             if len({x[0], x[1]}.intersection(s)) > 0:
                 s.update({x[0], x[1]})
@@ -675,47 +683,41 @@ def update_list(tempfile): # create gene-groups from compared sequences
 def merge_groups(grouplist):
     a1 = len(grouplist)
     a2 = 0
-    print('--> Number of groups before merge: ' + str(a1)) 
-    grouplist = [set(i) for i in grouplist]  # make set of the grouplists
-    while a1 > a2:
-        a1 = len(grouplist) 
-        y = 0 #position in first range
-        z = 0 #position in 2nd range
-        position = 0
-        for position in range(position, len(grouplist)-1):
-            z = y
-            for position2 in range(position+1,len(grouplist)):
-                z +=1
-                A1 = grouplist[position]
-                A2 = grouplist[position2]
-                # check if numbers occur in other groups
-                if len(A1.intersection(A2)) > 0: 
-                    grouplist[position] = grouplist[position].union(A2)
-                    grouplist[position2].clear() # mark for removal
-            y += 1 
-        # remove empty subsets
-        grouplist = [i for i in grouplist if len(i) > 0]  
-        a2 = len(grouplist)
-    print('--> Number of groups after merge: ' + str(a2)) 
+    if a1 > 1:
+        print('--> Number of groups before merge: ' + str(a1)) 
+        # remove empty groups who are pointing to an other group from "compare_consensus_groups"
+        grouplist = [i for i in grouplist if len(i) > 1]  
+        grouplist = [set(i) for i in grouplist]  # make set of the grouplists
+        while a1 > a2:
+            a1 = len(grouplist) 
+            y = 0 #position in first range
+            z = 0 #position in 2nd range
+            position = 0
+            for position in range(position, len(grouplist)-1):
+                z = y
+                for position2 in range(position+1,len(grouplist)):
+                    z +=1
+                    A1 = grouplist[position]
+                    A2 = grouplist[position2]
+                    # check if numbers occur in other groups
+                    if len(A1.intersection(A2)) > 0: 
+                        grouplist[position] = grouplist[position].union(A2)
+                        grouplist[position2].clear() # mark for removal
+                y += 1 
+            # remove empty subsets
+            grouplist = [i for i in grouplist if len(i) > 0]  
+            a2 = len(grouplist)
+        print('--> Number of groups after merge: ' + str(a2)) 
     
     return grouplist
 #==============================================================================
-def comp_consensus_groups(grouplist): # compare consensuses with each other
+def make_consensus(todoqueue, outputfolder, consensus_tempfile):
     global comparelist
-    comparelist.sort(key=lambda x: x[3]) # sort list based on index number
-                                         # must be done for option '-all' sequences !
-    print('-> Merging based on consensus of 50 reads per group') 
-    grouplist = [list(i) for i in grouplist]  # make list of the groupsets
-    a1 = len(grouplist)
-    a2 = 0
-    while a1 > a2:
-        a1 = len(grouplist)
-        position = 0
-        templist = []
-        for i,x in enumerate(grouplist): # create consensus of 50 seq in each group
+    MYLOCK = Lock()
+    templist = []
+    for X in iter(todoqueue.get, 'STOP'): # do stuff until infile.get returns "STOP"
+        for i, x in X:
             consensuslist = []
-            if len(x) > 50: # if number of reads > 50, only take 50 for consensus
-                x = random.sample (x, 50)
             # get the sequence that matches the number
             for y in x:
                 consensuslist.append(comparelist[int(y)][1]) 
@@ -723,35 +725,184 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
             # get all seq in same direction 
             consensuslist2 = consensus_direction(consensuslist) 
             consensus = l_median(consensuslist2)  # create consensuse sequence
-            grouplist[i].append(consensus)  # add consensus sequence to the group 
-            print(str(round(i/a1*100, 1)) + '% consensuses made', end='\r') 
-            # to clear previous line completely   
-        print('                                                ', end='\r')  
+            templist.append([i, consensus])
+    MYLOCK.acquire()
+    with open(os.path.join(outputfolder, consensus_tempfile), 'a') as f:
+        for c in templist:
+            f.write(str(c[0]) + ',' + str(c[1]) +'\n')
+        f.flush()
+    MYLOCK.release()
+#==============================================================================
+def iden_consensus(todoqueue, outputfolder, consensus_tempfile):
+    MYLOCK = Lock()
+    templist = []
+    for X in iter(todoqueue.get, 'STOP'): # do stuff until infile.get returns "STOP"
+        for A1, A2, y, z in X:
+            idenlist = []
+            iden = distance(A1,A2)
+            idenlist.append(iden) # add iden to list
+            idenR = distance(A1,compl_reverse(A2))
+            idenlist.append(idenR) # add idenR to list
+            idenlist.sort(reverse=True) # sort the list
+            iden = idenlist[0] # take the biggest value
+            if iden >= 0.60: 
+                templist.append([y, z, iden])    
+    MYLOCK.acquire()
+    with open(os.path.join(outputfolder, consensus_tempfile), 'a') as f:
+        for c in templist:
+            f.write(str(c[0]) + ',' + str(c[1]) + ',' + str(c[2]) +'\n')
+        f.flush()
+    MYLOCK.release()
+#==============================================================================
+def do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
+                  stringx):
+    for dirpath, dirnames, filenames in os.walk(outputfolder):
+        filenames = [i for i in filenames if i.endswith('.todo')]
+        filenames.sort(key=lambda x: os.path.getmtime(os.path.join(outputfolder, x)))
+        n = 1
+        for name in filenames:
+            print(stringx + name)
+            n += 1
+            with open(os.path.join(outputfolder, name), 'rb') as rf:
+                todolist = pickle.load(rf)
+                if len(todolist) >= nprocesses:
+                    chunk = len(todolist)//nprocesses
+                else:
+                    chunk = 1 #len(todolist)
+                todoqueue = Queue()
+                b = 0
+                e = chunk
+                while e < len(todolist):
+                    sublist = todolist[b:e]
+                    todoqueue.put(sublist)
+                    b = e
+                    e += chunk
+                else:
+                    sublist = todolist[b:e]
+                    todoqueue.put(sublist)
+                time.sleep(2)
+                os.remove(os.path.join(outputfolder, name))
+                try:
+                    process = [Process(target=make_consensus, args=(todoqueue, 
+                            outputfolder, consensus_tempfile,)) for x in range(nprocesses)]
+                    for p in process:
+                        # ask the processes to stop when all files are handled
+                        # "STOP" is at the very end of queue
+                        todoqueue.put("STOP")
+                    for p in process:
+                        p.start()
+                    for p in process:
+                        p.join()
+                except KeyboardInterrupt:
+                    print("Shutting processes down")
+                   # Optionally try to gracefully shut down the worker processes here.
+                    p.terminate()
+                    p.join()
+#==============================================================================
+def comp_consensus_groups(grouplist): # compare consensuses with each other
+    global comparelist
+    comparelist.sort(key=lambda x: x[3]) # sort list based on index number
+                                         # must be done for option '-all' sequences !
+    outputfolder = args.outputfolder  
+    nprocesses = args.nprocesses                              
+    consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
+                                                                            
+    print('-> Merging based on consensus of 50 reads per group') 
+    grouplist = [list(i) for i in grouplist]  # make list of the groupsets
+    a1 = len(grouplist)
+    a2 = 0
+    while a1 > a2:
+        todolist = []
+        a1 = len(grouplist)
+        position = 0
+        k = 0 # number of todofiles
+        for i, x in enumerate(grouplist): # create consensus of 50 seq in each group
+            if len(x) > 50: # if number of reads > 50, only take 50 for consensus
+                x = random.sample (x, 50)
+            todolist.append([i, x])
+            if len(todolist) == 500: # save in chuncks to save memory
+                todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                with open(todofilename, 'wb') as wf:
+                    pickle.dump(todolist, wf)
+                    todolist = []
+                    k += 1
+        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+        with open(todofilename, 'wb') as wf:
+            pickle.dump(todolist, wf)
+           
+        try:  # remove temporary file if exists
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass    
+        
+        stringx = '...making consensuses '
+        do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
+                      stringx)
+        
+        try:
+            with open(consensus_tempfile, 'r') as tf:
+                temp = tf.readlines()
+            for line in temp:
+                i, consensus = line.strip().split(',')
+                grouplist[int(i)].append(consensus)  # add consensus sequence to the group 
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass        
+        #---------------------------------------------------------------------  
+        todolist = []
+        a1 = len(grouplist)
+        position = 0
+        k = 0 # number of todofiles
+        l = 0 # number of comparisons to do
         y = 0 #position in first range
         z = 0 #position in 2nd range
         for position in range(position, len(grouplist)-1):
             z = y
             for position2 in range(position+1,len(grouplist)):
                 z +=1
-                A1 = grouplist[position]
-                A2 = grouplist[position2]
-                if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
+                A1 = grouplist[position][-1]
+                A2 = grouplist[position2][-1]
+                if len(A1)*1.08 < len(A2) or len(A2)*1.08 < len(A1):
                     pass  #don't compare if length of sequences differ to much
                 else:
-                    idenlist = []
-                    iden = distance(A1[-1],A2[-1])
-                    idenlist.append(iden) # add iden to list
-                    idenR = distance(A1[-1],compl_reverse(A2[-1]))
-                    idenlist.append(idenR) # add idenR to list
-                    idenlist.sort(reverse=True) # sort the list
-                    iden = idenlist[0] # take the biggest value
-                    if iden >= 0.60 : 
-                        templist.append([y, z, iden])
-            y += 1  
-            print(str(round(y/a1*100, 1)) + '% comparisons done', end='\r') 
-        for x in templist:  
-            # extend both groups with each other,
-            grouplist[x[0]].extend(grouplist[x[1]])  
+                    todolist.append([A1, A2, y, z])
+                    l +=1
+                    if len(todolist) == 2000000: # save in chuncks to save memory
+                        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                        with open(todofilename, 'wb') as wf:
+                            pickle.dump(todolist, wf)
+                            todolist = []
+                            k += 1                    
+            y += 1          
+        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+        with open(todofilename, 'wb') as wf:
+            pickle.dump(todolist, wf)
+           
+        try:  # remove temporary file if exists
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass    
+        
+        stringx = '...comparing consensuses '
+        do_parallel(outputfolder, nprocesses, consensus_tempfile, iden_consensus, 
+                      stringx)
+  
+        try:
+            with open(consensus_tempfile, 'r') as tf:
+                temp = tf.readlines()
+            for line in temp:
+                y, z, _ = line.strip().split(',')
+                while len(grouplist[int(y)]) == 1: # check if groups points to an other group
+                    y = int(grouplist[int(y)][0].replace('=', '')) # replace y to the other group
+                grouplist[int(y)].extend(grouplist[int(z)]) 
+                grouplist[int(z)] = ['=' + str(y)]
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass  
+
+        # # remove empty groups who are pointing to an other group
+        # grouplist = [i for i in grouplist if len(i) > 1]  
+        
         # merge again based on numbers occuring in different groups 
         grouplist = merge_groups(grouplist) 
     
@@ -769,8 +920,10 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
 #==============================================================================
 def read_indexes(group_filename): # read index numbers from the the group file
     global indexes, comparelist   
+    nprocesses = args.nprocesses
     indexes = set()
     outputfolder = args.outputfolder
+    consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
     similar_species_groups = args.similar_species_groups/100
     try:
         with open(os.path.join(outputfolder, group_filename), 'r') as gf:
@@ -783,33 +936,43 @@ def read_indexes(group_filename): # read index numbers from the the group file
         print('Can not find ' + group_filename)
         sys.exit()
     templist = []
+    tempdict = {}
+    t = 0 # items done
     try:
         with open(tempfile, 'r') as tf:
             for line in tf:
-                line = line.strip().split(':')
-                if len({line[0], line[1]}.intersection(indexes)) > 0:
-                    if float(line[2]) >= similar_species_groups: 
-                        templist.append(line)
+                e = line.strip().split(':')
+                a = e[1]
+                if float(e[2]) >= similar_species_groups: 
+                    if len({e[0], e[1]}.intersection(indexes)) > 0:
+                        if a in tempdict:
+                            tempdict[a].append(e)
+                            # sort list based on 2nd number (A2) and score)
+                            tempdict[a].sort(key=lambda x: (int(x[1]), float(x[2]))) 
+                            for i, j in enumerate(tempdict[a][:-1]):
+                                # if second index number is the same for the next item
+                                if j[1] == tempdict[a][i+1][1]: 
+                                    # if iden is lower: keep the best
+                                    if j[2] < tempdict[a][i+1][2]: 
+                                        j[0] = ''  # mark to remove
+                            # remove those lower values from the list 
+                            tempdict[a] = [i for i in tempdict[a] if i[0] != ''] 
+                        else:
+                            tempdict[a] = [e]
+                        t += 1
+                        if t % 1000000 == 0: 
+                            print(str(t) + ' processed', end='\r')
+        # add all values from dict to a list        
+        templist.extend(tempdict.values())
+        # make one list out of nested lists
+        templist = [x for sublist in templist for x in sublist] 
+
     except FileNotFoundError:
         pass
-    # only keep the best values:
-    a = len(templist)
-    b = 0
-    while a > b:
-        a = len(templist)
-        #sort list based on 2nd number (A2) and score
-        templist.sort(key=lambda x: (int(x[1]), float(x[2])))  
-        for i, j in enumerate(templist[:-1]):
-            if j[1] == templist[i+1][1]: # if second index number is the same 
-                if j[2] < templist[i+1][2]: # if iden is lower
-                    j[0] = ''                # mark to remove
-        templist = [j for j in templist if j[0] != ''] # remove from list  
-        b = len(templist)
-    
+
     grouplist = [] 
     # sort list based on score
     templist.sort(key=lambda x: float(x[2]),reverse=True) 
- 
     # Make groups with sequences with high similarity
 
     for x in templist:  
@@ -818,8 +981,8 @@ def read_indexes(group_filename): # read index numbers from the the group file
                 s.update([x[0], x[1]])
                 break    
         else:
-                grouplist.append({x[0], x[1]})
-   
+            grouplist.append({x[0], x[1]})
+
     grouplist = merge_groups(grouplist)  
     # only keep groups with more than 5 seq
     grouplist = [list(set(i)) for i in grouplist if len(i) > 2] 
@@ -831,17 +994,40 @@ def read_indexes(group_filename): # read index numbers from the the group file
     
     comparelist.sort(key=lambda x: x[3]) # sort list based on index number
                                          # must be done for 'all' sequences !
+    todolist = []
+    k = 0 # number of todofiles
     for i,x in enumerate(grouplist):
-        consensuslist = []
-        if len(x) > 500: # if number of reads > 500, only take 500 for consensus
-            x = random.sample (x, 500)
-        for y in x:
-            # get the sequence that matches the number
-            consensuslist.append(comparelist[int(y)][1]) 
-        # get all seq in same direction
-        consensuslist2 = consensus_direction(consensuslist) 
-        consensus = l_median(consensuslist2)  # create consensuse sequence
-        grouplist[i].append(consensus)  # add consensus sequence to the group
+        if len(x) > 100: # if number of reads > 100, only take 100 for consensus
+            x = random.sample (x, 100)
+        todolist.append([i, x])
+        if len(todolist) == 500: # save in chuncks to save memory
+            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+            with open(todofilename, 'wb') as wf:
+                pickle.dump(todolist, wf)
+                todolist = []
+                k += 1
+    todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+    with open(todofilename, 'wb') as wf:
+        pickle.dump(todolist, wf)
+    
+    try:  # remove temporary file if exists
+        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+    except FileNotFoundError:
+        pass
+    
+    stringx = '...making consensuses '
+    do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
+                  stringx)  
+
+    try:
+        with open(consensus_tempfile, 'r') as tf:
+            temp = tf.readlines()
+        for line in temp:
+            i, consensus = line.strip().split(',')
+            grouplist[int(i)].append(consensus)  # add consensus sequence to the group 
+        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+    except FileNotFoundError:
+        pass
 
     return indexes, grouplist
 #==============================================================================
@@ -972,7 +1158,7 @@ def process_consensuslist(indexes, grouplist, group_filename):
             else:
                 todolist.append([A1,A2])
                 l +=1
-                if len(todolist) == 500000: # save in chuncks to save memory
+                if len(todolist) == 2000000: # save in chuncks to save memory
                     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                     with open(todofilename, 'wb') as wf:
                         pickle.dump(todolist, wf)
@@ -989,46 +1175,10 @@ def process_consensuslist(indexes, grouplist, group_filename):
     except FileNotFoundError:
         pass    
 
-    for dirpath, dirnames, filenames in os.walk(outputfolder):
-        filenames = [i for i in filenames if i.endswith('.todo')]
-        filenames.sort(key=lambda x: os.path.getmtime(os.path.join(outputfolder, x)))
-        for name in filenames:
-            print('...processing: ' + name)
-            with open(os.path.join(outputfolder, name), 'rb') as rf:
-                todolist = pickle.load(rf)
-                if len(todolist) >= nprocesses:
-                    chunk = len(todolist)//nprocesses
-                else:
-                    chunk = len(todolist)
-                todoqueue = Queue()
-                b = 0
-                e = chunk
-                while e < len(todolist):
-                    sublist = todolist[b:e]
-                    todoqueue.put(sublist)
-                    b = e
-                    e += chunk
-                else:
-                    sublist = todolist[b:e]
-                    todoqueue.put(sublist)
-                time.sleep(2)
-                os.remove(os.path.join(outputfolder, name))
-                try:
-                    process = [Process(target=similarity_species, args=(todoqueue, 
-                            outputfolder, group_tempfile,)) for x in range(nprocesses)]
-                    for p in process:
-                        # ask the processes to stop when all files are handled
-                        # "STOP" is at the very end of queue
-                        todoqueue.put("STOP")
-                    for p in process:
-                        p.start()
-                    for p in process:
-                        p.join()
-                except KeyboardInterrupt:
-                    print("Shutting processes down")
-                   # Optionally try to gracefully shut down the worker processes here.
-                    p.terminate()
-                    p.join()
+    if len(todolist) > 0:
+        stringx = '...processing: '
+        do_parallel(outputfolder, nprocesses, group_tempfile, similarity_species, 
+                      stringx)
 #============================================================================== 
 def similarity_species(todoqueue, outputfolder, group_tempfile):
     # calculate the similarity between sequences
@@ -1058,33 +1208,41 @@ def similarity_species(todoqueue, outputfolder, group_tempfile):
 def update_groups(group_filename, grouplist):
     # update groups with sequences with high similarity
     global comparelist2
+    nprocesses = args.nprocesses   
     templist = []
+    tempdict = {}
     templist2 = []
     min_similar = args.similar_species/100
     outputfolder = args.outputfolder
+    consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')  
     group_tempfile = os.path.join(outputfolder, group_filename).replace('.group', '.tmp')
     try:
         with open(group_tempfile, 'r') as tf:
-            temp = tf.readlines()
-        for line in temp:
-            templist.append(line.strip().split(':'))
+            for line in tf:
+                e = line.strip().split(':')
+                a = e[0]
+                if a in tempdict:
+                    tempdict[a].append(e)
+                    # sort list based on 1st number and score
+                    tempdict[a].sort(key=lambda x: (int(x[0]), float(x[2])))
+                    for i, j in enumerate(tempdict[a][:-1]):
+                        # if second index number is the same for the next item
+                        if j[0] == tempdict[a][i+1][0]: 
+                            # if iden is lower: keep the best
+                            if j[2] <= tempdict[a][i+1][2]: 
+                                j[0] = ''  # mark to remove
+                    # remove those lower values from the list 
+                    tempdict[a] = [i for i in tempdict[a] if i[0] != ''] 
+                else:
+                    tempdict[a] = [e]    
+        # add all values from dict to a list        
+        templist.extend(tempdict.values())
+        # make one list out of nested lists
+        templist = [x for sublist in templist for x in sublist] 
     except FileNotFoundError:
         pass
-    # only keep the best values:
-    a = len(templist)
-    b = 0
-    while a > b:
-        a = len(templist)
-        #sort list based on 1st number and score
-        templist.sort(key=lambda x: (int(x[0]), float(x[2])))  
-        for i, j in enumerate(templist[:-1]):
-            if j[0] == templist[i+1][0]: # if second index number is the same 
-                if j[2] <= templist[i+1][2]: # if iden is lower or equal
-                    j[0] = ''                # mark to remove
-        templist = [j for j in templist if j[0] != ''] # remove from list  
-        b = len(templist)
         
-    templist2 = [i for i in templist if float(i[2]) >= similar] #only keep those 
+    templist2 = [i for i in templist if float(i[2]) >= similar] # only keep those 
     if len(templist2) == 0:
         print(group_filename + '----> no sequences passed criteria')
         if similar <= min_similar:
@@ -1105,18 +1263,41 @@ def update_groups(group_filename, grouplist):
      
         print(group_filename + '----> Making consensus for each group')
    
-        for i,x in enumerate(grouplist):
+        todolist = []
+        k = 0 # number of todofiles
+        for i, x in enumerate(grouplist):
             if x[-1].isdigit(): # if the last item is a number, sequence has been added
-                consensuslist = []
                 if len(x) > 100: # if number of reads > 100, only take 100 for consensus
                     x = random.sample(x, 100)
-                for y in x:
-                    # get the sequence that matches the number
-                    consensuslist.append(comparelist[int(y)][1]) 
-                # get all seq in same direction
-                consensuslist2 = consensus_direction(consensuslist) 
-                consensus = l_median(consensuslist2)  # create consensus sequence
-                grouplist[i].append(consensus)  # add consensus sequence to the group
+                todolist.append([i, x])
+                if len(todolist) == 500: # save in chuncks to save memory
+                    todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                    with open(todofilename, 'wb') as wf:
+                        pickle.dump(todolist, wf)
+                        todolist = []
+                        k += 1
+        todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+        with open(todofilename, 'wb') as wf:
+            pickle.dump(todolist, wf)
+        
+        try:  # remove temporary file if exists
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass
+
+        stringx = '...making consensuses '
+        do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
+                  stringx)
+        
+        try:
+            with open(consensus_tempfile, 'r') as tf:
+                temp = tf.readlines()
+            for line in temp:
+                i, consensus = line.strip().split(',')
+                grouplist[int(i)].append(consensus)  # add consensus sequence to the group 
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass         
         
         if similar <= min_similar:
             try:
@@ -1142,52 +1323,144 @@ def consensus_direction(consensuslist):
 #==============================================================================
 def compare_consensus(grouplist):
     # compare consensusses with each other
-    similar_consensus = args.similar_consensus/100    
-    a1 = len(grouplist)
-    a2 = 0
-    while a1 > a2:
+    similar_consensus = args.similar_consensus/100 
+    outputfolder = args.outputfolder
+    consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
+    nprocesses = args.nprocesses  
+    if len(grouplist) > 1:
         a1 = len(grouplist)
-        position = 0
-        grouplist2 = grouplist.copy() # need copy to delete and extend items
-        y = 0 #position in first range
-        z = 0 #position in 2nd range
-        for position in range(position, len(grouplist)-1):
-            z = y
-            for position2 in range(position+1,len(grouplist)):
-                z +=1
-                A1 = grouplist[position]
-                A2 = grouplist[position2]
-                if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
-                    pass  #don't compare if length of sequences differ to much
-                else:
-                    idenlist = []
-                    iden = distance(A1[-1],A2[-1])
-                    idenlist.append(iden) # add iden to list
-                    idenR = distance(A1[-1],compl_reverse(A2[-1]))
-                    idenlist.append(idenR) # add idenR to list
-                    idenlist.sort(reverse=True) # sort the list
-                    iden = idenlist[0] # take the biggest value
-                    if iden >= similar_consensus : 
-                        grouplist2[position].extend(A2)
-            y += 1  
-                     
-        grouplist = merge_groups(grouplist2)
+        a2 = 0
+        while a1 > a2:
+            todolist = []
+            a1 = len(grouplist)
+            position = 0
+            k = 0 # number of todofiles
+            l = 0 # number of comparisons to do
+            y = 0 #position in first range
+            z = 0 #position in 2nd range
+            for position in range(position, len(grouplist)-1):
+                z = y
+                for position2 in range(position+1,len(grouplist)):
+                    z +=1
+                    A1 = grouplist[position][-1]
+                    A2 = grouplist[position2][-1]
+                    if len(A1)*1.08 < len(A2) or len(A2)*1.08 < len(A1):
+                        pass  #don't compare if length of sequences differ to much
+                    else:
+                        todolist.append([A1, A2, y, z])
+                        l +=1
+                        if len(todolist) == 2000000: # save in chuncks to save memory
+                            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                            with open(todofilename, 'wb') as wf:
+                                pickle.dump(todolist, wf)
+                                todolist = []
+                                k += 1                    
+                y += 1          
+            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+            with open(todofilename, 'wb') as wf:
+                pickle.dump(todolist, wf)
+               
+            try:  # remove temporary file if exists
+                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+            except FileNotFoundError:
+                pass            
+            
+            stringx = '...comparing consensuses '
+            do_parallel(outputfolder, nprocesses, consensus_tempfile, iden_consensus, 
+                          stringx)        
+            
+            try:
+                with open(consensus_tempfile, 'r') as tf:
+                    temp = tf.readlines()
+                for line in temp:
+                    y, z, iden = line.strip().split(',')
+                    if float(iden) >= similar_consensus:
+                        while len(grouplist[int(y)]) == 1: # check if groups points to an other group
+                            y = int(grouplist[int(y)][0].replace('=', '')) # replace y to the other group
+                        grouplist[int(y)].extend(grouplist[int(z)]) 
+                        grouplist[int(z)] = ['=' + str(y)]
+                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+            except FileNotFoundError:
+                pass         
     
-        for i,x in enumerate(grouplist):  # remove consensus from groups
-            grouplist[i] = [y for y in x if y.isdigit()]
+            
+            # grouplist2 = grouplist.copy() # need copy to delete and extend items
+            # y = 0 #position in first range
+            # z = 0 #position in 2nd range
+            # for position in range(position, len(grouplist)-1):
+            #     z = y
+            #     for position2 in range(position+1,len(grouplist)):
+            #         z +=1
+            #         A1 = grouplist[position]
+            #         A2 = grouplist[position2]
+            #         if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
+            #             pass  #don't compare if length of sequences differ to much
+            #         else:
+            #             idenlist = []
+            #             iden = distance(A1[-1],A2[-1])
+            #             idenlist.append(iden) # add iden to list
+            #             idenR = distance(A1[-1],compl_reverse(A2[-1]))
+            #             idenlist.append(idenR) # add idenR to list
+            #             idenlist.sort(reverse=True) # sort the list
+            #             iden = idenlist[0] # take the biggest value
+            #             if iden >= similar_consensus : 
+            #                 grouplist2[position].extend(A2)
+            #     y += 1  
+                         
+            grouplist = merge_groups(grouplist)
         
-        for i,x in enumerate(grouplist):
-            consensuslist = []
-            if len(x) > 200: # if number of reads > 200, only take 200 for consensus
-                x = random.sample(x, 200)
-            for y in x:
-                # get the sequence that matches the number
-                consensuslist.append(comparelist[int(y)][1]) 
-            # get all seq in same direction
-            consensuslist2 = consensus_direction(consensuslist) 
-            consensus = l_median(consensuslist2)  # create consensuse sequence
-            grouplist[i].append(consensus)  # add consensus sequence to the group
-        a2 = len(grouplist)
+            for i,x in enumerate(grouplist):  # remove consensus from groups
+                grouplist[i] = [y for y in x if y.isdigit()]
+                
+            todolist = []
+            k = 0 # number of todofiles
+            for i,x in enumerate(grouplist):
+                if len(x) > 200: # if number of reads > 100, only take 100 for consensus
+                    x = random.sample (x, 200)
+                todolist.append([i, x])
+                if len(todolist) == 500: # save in chuncks to save memory
+                    todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+                    with open(todofilename, 'wb') as wf:
+                        pickle.dump(todolist, wf)
+                        todolist = []
+                        k += 1
+            todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+            with open(todofilename, 'wb') as wf:
+                pickle.dump(todolist, wf)
+            
+            try:  # remove temporary file if exists
+                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+            except FileNotFoundError:
+                pass
+            
+            stringx = '...making consensuses '
+            do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
+                          stringx)              
+                
+            
+            # for i,x in enumerate(grouplist):
+            #     consensuslist = []
+            #     if len(x) > 200: # if number of reads > 200, only take 200 for consensus
+            #         x = random.sample(x, 200)
+            #     for y in x:
+            #         # get the sequence that matches the number
+            #         consensuslist.append(comparelist[int(y)][1]) 
+            #     # get all seq in same direction
+            #     consensuslist2 = consensus_direction(consensuslist) 
+            #     consensus = l_median(consensuslist2)  # create consensuse sequence
+            #     grouplist[i].append(consensus)  # add consensus sequence to the group
+    
+            try:
+                with open(consensus_tempfile, 'r') as tf:
+                    temp = tf.readlines()
+                for line in temp:
+                    i, consensus = line.strip().split(',')
+                    grouplist[int(i)].append(consensus)  # add consensus sequence to the group 
+                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+            except FileNotFoundError:
+                pass        
+            
+            a2 = len(grouplist)
         
     return grouplist
 #==============================================================================   
@@ -1204,6 +1477,10 @@ def rest_reads(indexes, grouplist, group_filename):
     process_consensuslist(indexes, grouplist, group_filename)                
     comparelist2, grouplist, templist, templist2 = update_groups(group_filename, 
                                                                  grouplist)
+    if len(templist2) > 200: # first 3 cycles need lot of comparisons, try reduce 
+                             # that by merging groups if sequences are added
+        # compare consensusses with each other
+        grouplist = compare_consensus(grouplist)
     k += 1
     while similar > min_similar: 
         while k <= 2:
@@ -1213,7 +1490,8 @@ def rest_reads(indexes, grouplist, group_filename):
                     group_filename, grouplist)
                 if len(templist2) > 0 and k < 2:
                     # compare consensusses with each other
-                    grouplist = compare_consensus(grouplist)  
+                    if len(grouplist) > 1:
+                        grouplist = compare_consensus(grouplist)  
                 k += 1
             else: 
                 k = 3
@@ -1231,7 +1509,8 @@ def rest_reads(indexes, grouplist, group_filename):
                 comparelist2, grouplist, templist, templist2 = update_groups(
                     group_filename, grouplist)
                 k += 1
-    grouplist = compare_consensus(grouplist) # compare consensusses with each other 
+    if len(grouplist) > 1:
+        grouplist = compare_consensus(grouplist) # compare consensusses with each other 
 
     MYLOCK.acquire()
     comparelist2.sort(key=lambda x: x[3]) #sort list based on index number
