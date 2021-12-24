@@ -109,6 +109,12 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2021/12/19:
+- minor changes to increase speed a little bit.
+- filtering of the reads to species groups changed from list to dict format: speed increase and more memory efficient.
+- parallelizing comparing consensus and making consensus to get speed increase for larger datasets
+- merging groups changed from list to dict format: speed increase and more memory efficient.
+
 2021/12/01:
 - major speed improvement by using the edlib library to do the comparison between sequences (see requirements for installation) (first tests between 5 - 10 x faster).
 - minor speed increase in merging groups (4 x).
@@ -156,7 +162,7 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 - write number of reads in length selection to readlength histogram
 - combine groups if consensus is at least 99% similar
 - save time by making consensus of max 500 random reads in group
-- major speed improvement when comparing a lot of sequences.  When the number of sequences is x 100, calculation time is x 10.000.  Subsampling in batches of 1000 sequences decreases calculation time x 10 (it does NOT compare al sequences with each other, it compares batches of 1000 with each other) 
+- major speed improvement when comparing a lot of sequences.  When the number of sequences is x 100, calculation time is x 10.000.  Subsampling in batches of 1000 sequences decreases calculation time x 10 (it does NOT compare all sequences with each other, it compares batches of 1000 with each other) 
 
 2020/5/20:
 - Save a file "results.txt" in outputfolder with how many reads are in which file.
