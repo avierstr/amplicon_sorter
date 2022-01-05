@@ -109,6 +109,12 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2021/12/24:
+- limit number of comparisons (for large data files).
+- checks to cleanup temporary files.
+- limit number of comparisons to merge files.
+- memory improvement to process large data files.  Still needs more improvement.
+
 2021/12/19:
 - minor changes to increase speed a little bit.
 - filtering of the reads to species groups changed from list to dict format: speed increase and more memory efficient.
