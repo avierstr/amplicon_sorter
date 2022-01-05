@@ -41,7 +41,7 @@ import re
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-12-19'  # version of the script
+version = '2021-12-24'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -806,12 +806,23 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
     outputfolder = args.outputfolder  
     nprocesses = args.nprocesses                              
     consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
-                                                                            
+    
+    try:  # remove temporary file if exists
+        for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+            os.remove(x)
+        time.sleep(1)
+    except FileNotFoundError:
+        pass
+    try:  # remove temporary file if exists
+        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+    except FileNotFoundError:
+        pass
+                                                                        
     print('-> Merging based on consensus of 50 reads per group') 
     grouplist = [list(i) for i in grouplist]  # make list of the groupsets
     a1 = len(grouplist)
     a2 = 0
-    while a1 > a2:
+    while a1 > a2: # limit number of cycles 
         todolist = []
         a1 = len(grouplist)
         position = 0
@@ -824,8 +835,8 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
                 todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                 with open(todofilename, 'wb') as wf:
                     pickle.dump(todolist, wf)
-                    todolist = []
-                    k += 1
+                todolist = []
+                k += 1
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
         with open(todofilename, 'wb') as wf:
             pickle.dump(todolist, wf)
@@ -871,17 +882,12 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
                         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                         with open(todofilename, 'wb') as wf:
                             pickle.dump(todolist, wf)
-                            todolist = []
-                            k += 1                    
+                        todolist = []
+                        k += 1                    
             y += 1          
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
         with open(todofilename, 'wb') as wf:
-            pickle.dump(todolist, wf)
-           
-        try:  # remove temporary file if exists
-            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
-        except FileNotFoundError:
-            pass    
+            pickle.dump(todolist, wf)  
         
         stringx = '...comparing consensuses '
         do_parallel(outputfolder, nprocesses, consensus_tempfile, iden_consensus, 
@@ -890,12 +896,13 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
         try:
             with open(consensus_tempfile, 'r') as tf:
                 temp = tf.readlines()
+                grouplist = [set(x) for x in grouplist]
             for line in temp:
                 y, z, _ = line.strip().split(',')
                 while len(grouplist[int(y)]) == 1: # check if groups points to an other group
-                    y = int(grouplist[int(y)][0].replace('=', '')) # replace y to the other group
-                grouplist[int(y)].extend(grouplist[int(z)]) 
-                grouplist[int(z)] = ['=' + str(y)]
+                    y = int(list(grouplist[int(y)])[0].replace('=', '')) # replace y to the other group
+                grouplist[int(y)].update(grouplist[int(z)]) 
+                grouplist[int(z)] = {'=' + str(y)}
             os.remove(os.path.join(outputfolder, 'consensus.tmp'))
         except FileNotFoundError:
             pass  
@@ -994,6 +1001,17 @@ def read_indexes(group_filename): # read index numbers from the the group file
     
     comparelist.sort(key=lambda x: x[3]) # sort list based on index number
                                          # must be done for 'all' sequences !
+    try:  # remove temporary file if exists
+        for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+            os.remove(x)
+        time.sleep(1)
+    except FileNotFoundError:
+        pass
+    try:  # remove temporary file if exists
+        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+    except FileNotFoundError:
+        pass
+    
     todolist = []
     k = 0 # number of todofiles
     for i,x in enumerate(grouplist):
@@ -1004,16 +1022,11 @@ def read_indexes(group_filename): # read index numbers from the the group file
             todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
             with open(todofilename, 'wb') as wf:
                 pickle.dump(todolist, wf)
-                todolist = []
-                k += 1
+            todolist = []
+            k += 1
     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
     with open(todofilename, 'wb') as wf:
         pickle.dump(todolist, wf)
-    
-    try:  # remove temporary file if exists
-        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
-    except FileNotFoundError:
-        pass
     
     stringx = '...making consensuses '
     do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
@@ -1137,6 +1150,13 @@ def process_consensuslist(indexes, grouplist, group_filename):
     except FileNotFoundError:
         pass
     
+    try:  # remove temporary file if exists
+        for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+            os.remove(x)
+        time.sleep(1)
+    except FileNotFoundError:
+        pass   
+    
     indexes2 = indexes.copy()  # need a duplicate of indexes to remove items
     for x in grouplist:
         for y in x:
@@ -1162,8 +1182,10 @@ def process_consensuslist(indexes, grouplist, group_filename):
                     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                     with open(todofilename, 'wb') as wf:
                         pickle.dump(todolist, wf)
-                        todolist = []
-                        k += 1
+                    todolist = []
+                    k += 1
+        if k == 100:
+            break
     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
     with open(todofilename, 'wb') as wf:
         pickle.dump(todolist, wf)
@@ -1263,6 +1285,17 @@ def update_groups(group_filename, grouplist):
      
         print(group_filename + '----> Making consensus for each group')
    
+        try:  # remove temporary file if exists
+            for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+                os.remove(x)
+            time.sleep(1)
+        except FileNotFoundError:
+            pass
+        try:  # remove temporary file if exists
+            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+        except FileNotFoundError:
+            pass
+   
         todolist = []
         k = 0 # number of todofiles
         for i, x in enumerate(grouplist):
@@ -1274,17 +1307,12 @@ def update_groups(group_filename, grouplist):
                     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                     with open(todofilename, 'wb') as wf:
                         pickle.dump(todolist, wf)
-                        todolist = []
-                        k += 1
+                    todolist = []
+                    k += 1
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
         with open(todofilename, 'wb') as wf:
             pickle.dump(todolist, wf)
         
-        try:  # remove temporary file if exists
-            os.remove(os.path.join(outputfolder, 'consensus.tmp'))
-        except FileNotFoundError:
-            pass
-
         stringx = '...making consensuses '
         do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
                   stringx)
@@ -1327,10 +1355,22 @@ def compare_consensus(grouplist):
     outputfolder = args.outputfolder
     consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
     nprocesses = args.nprocesses  
+    try:  # remove temporary file if exists
+        for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+            os.remove(x)
+        time.sleep(1)
+    except FileNotFoundError:
+        pass
+    try:  # remove temporary file if exists
+        os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+    except FileNotFoundError:
+        pass
+    
     if len(grouplist) > 1:
         a1 = len(grouplist)
         a2 = 0
-        while a1 > a2:
+        b = 0 
+        while a1 > a2 and b < 3: # limit number of cycles
             todolist = []
             a1 = len(grouplist)
             position = 0
@@ -1353,18 +1393,13 @@ def compare_consensus(grouplist):
                             todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                             with open(todofilename, 'wb') as wf:
                                 pickle.dump(todolist, wf)
-                                todolist = []
-                                k += 1                    
+                            todolist = []
+                            k += 1                    
                 y += 1          
             todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
             with open(todofilename, 'wb') as wf:
                 pickle.dump(todolist, wf)
                
-            try:  # remove temporary file if exists
-                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
-            except FileNotFoundError:
-                pass            
-            
             stringx = '...comparing consensuses '
             do_parallel(outputfolder, nprocesses, consensus_tempfile, iden_consensus, 
                           stringx)        
@@ -1372,84 +1407,55 @@ def compare_consensus(grouplist):
             try:
                 with open(consensus_tempfile, 'r') as tf:
                     temp = tf.readlines()
+                    grouplist = [set(x) for x in grouplist]
                 for line in temp:
                     y, z, iden = line.strip().split(',')
                     if float(iden) >= similar_consensus:
                         while len(grouplist[int(y)]) == 1: # check if groups points to an other group
-                            y = int(grouplist[int(y)][0].replace('=', '')) # replace y to the other group
-                        grouplist[int(y)].extend(grouplist[int(z)]) 
-                        grouplist[int(z)] = ['=' + str(y)]
+                            y = int(list(grouplist[int(y)])[0].replace('=', '')) # replace y to the other group
+                        grouplist[int(y)].update(grouplist[int(z)]) 
+                        list(set(grouplist[int(y)]))
+                        grouplist[int(z)] = {'=' + str(y)}
                 os.remove(os.path.join(outputfolder, 'consensus.tmp'))
             except FileNotFoundError:
                 pass         
     
-            
-            # grouplist2 = grouplist.copy() # need copy to delete and extend items
-            # y = 0 #position in first range
-            # z = 0 #position in 2nd range
-            # for position in range(position, len(grouplist)-1):
-            #     z = y
-            #     for position2 in range(position+1,len(grouplist)):
-            #         z +=1
-            #         A1 = grouplist[position]
-            #         A2 = grouplist[position2]
-            #         if len(A1[-1])*1.08 < len(A2[-1]) or len(A2[-1])*1.08 < len(A1[-1]):
-            #             pass  #don't compare if length of sequences differ to much
-            #         else:
-            #             idenlist = []
-            #             iden = distance(A1[-1],A2[-1])
-            #             idenlist.append(iden) # add iden to list
-            #             idenR = distance(A1[-1],compl_reverse(A2[-1]))
-            #             idenlist.append(idenR) # add idenR to list
-            #             idenlist.sort(reverse=True) # sort the list
-            #             iden = idenlist[0] # take the biggest value
-            #             if iden >= similar_consensus : 
-            #                 grouplist2[position].extend(A2)
-            #     y += 1  
-                         
             grouplist = merge_groups(grouplist)
         
             for i,x in enumerate(grouplist):  # remove consensus from groups
                 grouplist[i] = [y for y in x if y.isdigit()]
                 
+            try:  # remove temporary file if exists
+                for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+                    os.remove(x)
+                time.sleep(1)
+            except FileNotFoundError:
+                pass
+            try:  # remove temporary file if exists
+                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
+            except FileNotFoundError:
+                pass
+            
             todolist = []
             k = 0 # number of todofiles
             for i,x in enumerate(grouplist):
-                if len(x) > 200: # if number of reads > 100, only take 100 for consensus
+                if len(x) > 200: # if number of reads > 200, only take 200 for consensus
                     x = random.sample (x, 200)
                 todolist.append([i, x])
                 if len(todolist) == 500: # save in chuncks to save memory
                     todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
                     with open(todofilename, 'wb') as wf:
                         pickle.dump(todolist, wf)
-                        todolist = []
-                        k += 1
+                    todolist = []
+                    k += 1
             todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
             with open(todofilename, 'wb') as wf:
                 pickle.dump(todolist, wf)
-            
-            try:  # remove temporary file if exists
-                os.remove(os.path.join(outputfolder, 'consensus.tmp'))
-            except FileNotFoundError:
-                pass
             
             stringx = '...making consensuses '
             do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus, 
                           stringx)              
                 
-            
-            # for i,x in enumerate(grouplist):
-            #     consensuslist = []
-            #     if len(x) > 200: # if number of reads > 200, only take 200 for consensus
-            #         x = random.sample(x, 200)
-            #     for y in x:
-            #         # get the sequence that matches the number
-            #         consensuslist.append(comparelist[int(y)][1]) 
-            #     # get all seq in same direction
-            #     consensuslist2 = consensus_direction(consensuslist) 
-            #     consensus = l_median(consensuslist2)  # create consensuse sequence
-            #     grouplist[i].append(consensus)  # add consensus sequence to the group
-    
             try:
                 with open(consensus_tempfile, 'r') as tf:
                     temp = tf.readlines()
@@ -1461,6 +1467,7 @@ def compare_consensus(grouplist):
                 pass        
             
             a2 = len(grouplist)
+            b += 1
         
     return grouplist
 #==============================================================================   
@@ -1618,7 +1625,7 @@ def sort(group_filename):
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
 
-#==============================================================================  
+#==============================================================================    
 if __name__ == '__main__':
     try:
         args = get_arguments()
