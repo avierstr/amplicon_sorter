@@ -17,6 +17,9 @@ Requirements:
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
 
+### Citation:
+Vierstraete, A. R., & Braeckman, B. P. (2022). Amplicon_sorter: A tool for reference-free amplicon sorting based on sequence similarity and for building consensus sequences. _Ecology and Evolution_, 12, e8603. [https://doi.org/10.1002/ece3.8603](https://doi.org/10.1002/ece3.8603)
+
 ### Options:
 
 `-i, --input`: Input file in fastq or fasta format (auto-detect). Make sure the inputfile is named as .fasta or .fastq because it replaces the extension in parts of the script.
