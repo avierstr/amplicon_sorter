@@ -12,7 +12,7 @@ Requirements:
 
 -   Python 3
 -   python3-dev, python3-setuptools, python3-pip, python3-wheel (`sudo apt-get install python3-dev python3-setuptools python3-pip python3-wheel`)
--   c-implementation of Levenshtein: [https://pypi.org/project/python-Levenshtein/](https://pypi.org/project/python-Levenshtein/) (`python3 -m pip install python-Levenshtein`)
+-   ~~c-implementation of Levenshtein: [https://pypi.org/project/python-Levenshtein/](https://pypi.org/project/python-Levenshtein/) (`python3 -m pip install python-Levenshtein`)~~ No longer needed in the version 2022-03-28
 - edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`)
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
@@ -115,7 +115,12 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2022/03/28:
+- a little speed improvement (1,2 x) by using another consensus calling method (edlib).  Levenshtein plugin no longer needed.
+- added a "finetune cycle" to remove reads that are too different from the consensus.  This results sometimes in a better consensus, can sometimes separate species with a high similarity, removes groups with a low number of reads.
+
 2021/12/24:
+(version of the publication of March 2022 (https://doi.org/10.1002/ece3.8603)
 - limit number of comparisons (for large data files).
 - checks to cleanup temporary files.
 - limit number of comparisons to merge files.
