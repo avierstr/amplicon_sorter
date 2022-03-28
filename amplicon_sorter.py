@@ -26,7 +26,7 @@ import multiprocessing
 from multiprocessing import Process, Lock, Queue
 from threading import Thread
 # from Levenshtein import distance as l_distance
-from Levenshtein import median as l_median
+#from Levenshtein import median as l_median
 import edlib # faster implementation than Levenshtein for seq longer than 200 bp 
 import os
 import sys
@@ -38,10 +38,12 @@ import pickle
 import argparse
 import urllib.request
 import re
+from itertools import zip_longest
+import statistics
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2021-12-24'  # version of the script
+version = '2022-03-28'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -218,6 +220,53 @@ def compl_reverse(self):
     complement = ''.maketrans(inp, outp)
     R = (self[::-1]).translate(complement)  # complement reverse
     return R
+#==============================================================================
+def create_consensus(readlist):
+    # Make a consensus from a list of reads with the edlib plugin
+    readlist.sort(key=lambda x: len(x), reverse = True)
+    consensus = readlist[0] # longest read as start is best
+    for treshold in [45, 15, 40]: # first 45 is draft, then 15 to improve and 
+                                   # 40 to finish
+        alignlist = []
+        q = [x for x in consensus] # make list of string
+        alignlist.append(q)
+        number = re.compile(r'\d+') # the numbers to find
+        symbol = re.compile(r'\D') # the letters or symbols to find
+        for x in range(0, len(readlist)):
+            t = [b for b in readlist[x]]  
+            s = edlib.align(q, t, mode='NW', task='path')
+            scorelist = []
+            n = re.findall(number, s['cigar'])
+            s = re.findall(symbol, s['cigar']) 
+            for x, y in zip(n, s):
+                scorelist += int(x) * [y]
+            insertlist = []
+            for i, (x, y) in enumerate(zip_longest(t, scorelist)):
+                if y == 'I': # insert gap
+                    t.insert(i, '-')
+                if y == 'D': # if delete is needed, insert gap in q
+                    insertlist.append(i)
+            for i in insertlist:
+                for z in alignlist: # if insertion in longest sequence, also 
+                                    # insert in other aligned sequences
+                    z.insert(i, '-')
+            alignlist.append(t)
+        # create the consensus
+        c = len(alignlist)
+        consenlist = []
+        for y in range(len(alignlist[0])): # for every position in alignment
+            templist = []
+            for x in alignlist: # for every column
+                if x[y] != '-': 
+                    templist.append(x[y]) 
+            try:  # find the most abundant base in that column
+                if len(templist) > treshold*c/100:
+                    base = statistics.mode(templist)     
+                    consenlist.append(base)
+            except:
+                pass
+        consensus = ''.join(consenlist)
+    return consensus
 #==============================================================================
 def N50(readlengthlist, bases):  #calculate the N50
     a = sorted(readlengthlist, reverse=True)
@@ -409,7 +458,7 @@ def read_file(self): # read the inputfile
                   str(maxlength) + 'bp')
     return comparelist, comparelist2, num_seq
 #==============================================================================
-def process_list(self): # make files to do comparisons
+def process_list(self, tempfile): # make files to do comparisons
     global comparelist2, len_todolist
     nprocesses = args.nprocesses
     # compare 1 with 2,3,4,5,...; compare 2 with 3,4,5,... compare 3 with 4,5,...
@@ -509,8 +558,8 @@ def process_list(self): # make files to do comparisons
                         
     def consumer(): # function to consume the queue  
         try:
-            process = [Process(target=similarity, args=(todoqueue,)) for x in 
-                       range(nprocesses)]
+            process = [Process(target=similarity, args=(todoqueue, tempfile,)) 
+                        for x in range(nprocesses)]
             for p in process:
                 p.start()
             for p in process:
@@ -528,7 +577,7 @@ def process_list(self): # make files to do comparisons
     c.start()
     c.join() # wait until c has finished its work
 #==============================================================================
-def similarity(todoqueue): # process files for similarity 
+def similarity(todoqueue, tempfile): # process files for similarity 
     global progress, len_todolist
     try:  # remove temporary file if exists
         os.remove(tempfile)
@@ -586,6 +635,131 @@ def SSG(tempfile):  #calculate the N6
             print('-> Estimated ssg = ' + str(int(x*100)))
             return int(x*100)
             break
+#==============================================================================
+def finetune(grouplist):
+    #--------------------------------------------------------------------------
+    def distance_finetune(X1,X2):  # calculate the similarity of 2 sequences
+                                    # with the HW mode (begin and end distance
+                                    # not important)
+        if len(X1) > len(X2): # check which one is longer
+            A2 = X1
+            A1 = X2
+        else:
+            A1 = X1
+            A2 = X2
+        s = edlib.align(A1, A2, task='distance', mode='HW')
+        distance = s['editDistance']
+        iden = round(1 - distance/len(A2),3) 
+        return iden
+    #--------------------------------------------------------------------------  
+    def reads_direction(readlist): 
+        # put all sequences in the same direction (F or R)
+        x = readlist[0][1] # first sequence
+        for i, y in enumerate(readlist):
+            iden = distance(x,y[1])
+            idenR = distance(x,compl_reverse(y[1]))
+            if iden < idenR:
+                readlist[i][1] = compl_reverse(y[1])
+        return readlist
+    #--------------------------------------------------------------------------
+    def check_consensus(consensus, readlist):
+        # check if the reads are from one species
+        for i, x in enumerate(readlist):  
+            iden = distance(consensus,x[1])
+            readlist[i][2] = iden
+        readlist.sort(key=lambda x: str(x[2]))
+        seqlist = [x[1] for x in readlist if x[2] > 0.94]
+        if len(seqlist) < 20:
+            seqlist = [x[1] for x in readlist[-20:]]
+        consensus1 = create_consensus(seqlist[-50:])
+        iden = distance(consensus1, consensus) 
+        return iden, consensus1, readlist
+    #--------------------------------------------------------------------------
+    addlist = []
+    for i, group in enumerate(grouplist):
+        readlist = []
+        for n in group:
+            if n.isalpha():
+                grouplist[i].remove(n)
+            else:
+                 # get the sequence that matches the number
+                 readlist.append([n, comparelist[int(n)][1], '']) 
+        
+        readlist = reads_direction(readlist) # put reads in same direction
+        try:
+            readlist2 = random.sample(readlist,100)
+        except ValueError:
+            readlist2 = random.sample(readlist,len(readlist))
+        # compare 100 reads, find a close and distant sequence
+        for x in readlist2[0:1]:
+            scorelist = []
+            for y in readlist2[1:100]:
+                iden = distance(x[1], y[1])
+                scorelist.append([iden, y[1]])
+        scorelist.sort(key=lambda x: x[0])
+        consensus1 = scorelist[int(len(scorelist)//1.25)][1] # take seq somewhere at the end
+        consensus2 = scorelist[int(len(scorelist)//5)][1] # take seq somewhere at the begin
+        
+        p = 1
+        iden1 = iden2 = 0
+        while iden1 < 1 or iden2 < 1:
+            iden1, consensus1, readlist = check_consensus(consensus1, readlist)
+            iden2, consensus2, readlist = check_consensus(consensus2, readlist)
+            iden3 = distance(consensus1, consensus2)
+            print('---finetune group ' + str(i) + ' cycle ' + str(p))
+            p += 1
+            if p == 11:
+                break
+
+        if iden3 == 1:
+            seqlist = [x[1] for x in readlist if x[2] >= 0.95]
+            if len(seqlist) >= 5:
+                try:
+                    sample = random.sample(seqlist, 150)
+                except ValueError:
+                    sample = seqlist
+                consensus = create_consensus(sample)
+                grouplist[i].append(consensus)
+                for x in readlist:
+                    if x[2] < 0.95: 
+                        grouplist[i].remove(x[0])
+            else:
+                grouplist[i] = []
+        else:
+            # process group B
+            grouplist[i] = [] # empty grouplist
+            seqlist = [x[1] for x in readlist if x[2] >= 0.95]
+            if len(seqlist) >= 5:
+                try:
+                    sample = random.sample(seqlist, 150)
+                except ValueError:
+                    sample = seqlist
+                consensus = create_consensus(sample)
+                for j, x in enumerate(readlist):
+                    if x[2] >= 0.95: 
+                        grouplist[i].append(x[0])
+                        readlist[j] = []
+                grouplist[i].append(consensus)
+            # process group A
+            readlist = [x for x in readlist if len(x) > 0]
+            if len(readlist) > 5:
+                iden1, consensus1, readlist = check_consensus(consensus1, readlist)
+                seqlist = [x[1] for x in readlist if x[2] >= 0.95]
+                templist = []
+                if len(seqlist) >= 5:
+                    try:
+                        sample = random.sample(seqlist, 150)
+                    except ValueError:
+                        sample = seqlist
+                    consensus = create_consensus(sample)
+                    for i, x in enumerate(readlist):
+                        if x[2] >= 0.95: 
+                            templist.append(x[0])
+                    templist.append(consensus)
+                    addlist.append(templist)
+    if len(addlist) > 0:
+        grouplist.extend(addlist)
+    return grouplist
 #==============================================================================
 def update_list(tempfile): # create gene-groups from compared sequences
     outputfolder = args.outputfolder
@@ -724,7 +898,7 @@ def make_consensus(todoqueue, outputfolder, consensus_tempfile):
             consensuslist.sort(key=lambda x: len(x)) #sort list based on length seq
             # get all seq in same direction 
             consensuslist2 = consensus_direction(consensuslist) 
-            consensus = l_median(consensuslist2)  # create consensuse sequence
+            consensus = create_consensus(consensuslist2)  # create consensuse sequence
             templist.append([i, consensus])
     MYLOCK.acquire()
     with open(os.path.join(outputfolder, consensus_tempfile), 'a') as f:
@@ -992,9 +1166,9 @@ def read_indexes(group_filename): # read index numbers from the the group file
 
     grouplist = merge_groups(grouplist)  
     # only keep groups with more than 5 seq
-    grouplist = [list(set(i)) for i in grouplist if len(i) > 2] 
+    grouplist = [list(set(i)) for i in grouplist if len(i) > 3] 
     a2 = len(grouplist)
-    print('--> Number of groups after removing groups with less than 3 sequences: '
+    print('--> Number of groups after removing groups with less than 4 sequences: '
           + str(a2)) 
     
     print('----> Making consensus for each group')
@@ -1504,6 +1678,10 @@ def rest_reads(indexes, grouplist, group_filename):
                 k = 3
         else:
             k = 0
+            if similar in [0.94, 0.88]: # perform 2 finetune cycles
+                grouplist = finetune(grouplist)
+                grouplist = [x for x in grouplist if len(x) > 0]
+                process_consensuslist(indexes, grouplist, group_filename)
             similar = round(similar - 0.01, 2) 
             print(group_filename + '----> similarity = ' + str(similar))
             if len(templist) == 0:
@@ -1545,7 +1723,7 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
         read_file(infile)
     else:
         read_file(infile)
-        process_list(comparelist2) 
+        process_list(comparelist2, tempfile) 
         
         comparelist2 = list(set(([tuple(x) for sublist in comparelist2 for x in 
                                   sublist]))) # make list out of list with sublists
@@ -1624,7 +1802,6 @@ def sort(group_filename):
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
-
 #==============================================================================    
 if __name__ == '__main__':
     try:
