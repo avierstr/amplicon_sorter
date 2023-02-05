@@ -2,6 +2,9 @@
 # amplicon_sorter
 
 THIS IS A DRAFT VERSION AND NOT THOROUGHLY TESTED.  USE AT OWN RISK.
+______________________________________________________________________________________________________________
+!!!!!! The -ldc is not working as expected, I'm testing an updated version before I will put it online. !!!!!!
+_______________________________________________________________________________________________________________
 
 ### Extra Added Options:
 
