@@ -8,16 +8,9 @@ Python 3.8
 
 compare sequences from a MinION run and sort them based on similarity
 
-For c implementation of Levenshtein:
-    https://pypi.org/project/python-Levenshtein/
-    sudo apt-get install python3-dev
-    (needed: python3-setuptools, python3-pip, python3-wheel)
-    python3 -m pip install python-Levenshtein
 Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) 
 distance:
     https://pypi.org/project/edlib/#description
-    python3 -m pip install edlib
-https://maxbachmann.github.io/Levenshtein/installation.html
     python3 -m pip install edlib
 
 """
@@ -25,8 +18,6 @@ from Bio import SeqIO
 import multiprocessing
 from multiprocessing import Process, Lock, Queue
 from threading import Thread
-# from Levenshtein import distance as l_distance
-#from Levenshtein import median as l_median
 import edlib # faster implementation than Levenshtein for seq longer than 200 bp 
 import os
 import sys
@@ -43,7 +34,7 @@ import statistics
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2022-03-28'  # version of the script
+version = '2023-03-12'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -93,6 +84,17 @@ def get_arguments():
                                              + " and < " + str(100.0))
         return f
 
+    def range_limited_float_0_200(arg):
+        """ Type function for argparse - a float within some predefined bounds """
+        try:
+            f = float(arg)
+        except ValueError:    
+            raise argparse.ArgumentTypeError("Must be a floating point number")
+        if f < 0 or f > 200:
+            raise argparse.ArgumentTypeError("Argument must be > " + str(0.0) 
+                                             + " and < " + str(200.0))
+        return f
+
     def valid_file(param):  # check if input file ends on .fastq or .fasta
         base, ext = os.path.splitext(param)
         if ext.lower() not in ('.fasta', '.fastq'): 
@@ -119,6 +121,10 @@ def get_arguments():
                         help='Maximum readlenght to process.  Default=No limit')
     parser.add_argument('-maxr', '--maxreads', type = int, required=False, default=10000,
                         help='Maximum number of reads to process.  Default=10000')
+    parser.add_argument('-ar', '--allreads', action = 'store_true',
+                        help='Use all reads between length limits to process.\
+                            This argument is limited with "-maxreads" to \
+                                have a hard limit')
     parser.add_argument('-np', '--nprocesses', type = int, required=False, default=1,
                         help='Number of processors to use. Default=1')
     parser.add_argument('-sg', '--similar_genes', type = range_limited_float_type, 
@@ -136,7 +142,12 @@ def get_arguments():
     parser.add_argument('-sc', '--similar_consensus', type = range_limited_float_type, 
                         required=False, default=96.0 ,
                         help='Similarity to COMBINE groups based on the consensus\
-                            sequence (value between 50 and 100). Default=96.0')                        
+                            sequence (value between 50 and 100). Default=96.0')  
+    parser.add_argument('-ldc', '--length_diff_consensus', type = range_limited_float_0_200, 
+                        required=False, default=8.0 ,
+                        help='Length difference (in %) allowed between consensuses to\
+                            COMBINE groups based on the consensus sequence\
+                                (value between 0 and 200). Default=8.0 %')                          
     parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
                         help='Save the results also in fastq files (fastq files\
                             will not contain the consensus sequence)')
@@ -169,49 +180,31 @@ def save_arguments(): # save all settings in the result.txt file
         rf.write('- minlength = ' + str(args.minlength) + '\n')
         rf.write('- maxlength = ' + str(args.maxlength) + '\n')
         rf.write('- maxreads = ' + str(args.maxreads) + '\n')
+        rf.write('- allreads = ' + str(args.allreads) + '\n')
         rf.write('- n_processes = ' + str(args.nprocesses) + '\n')
         rf.write('- similar_genes = ' + str(args.similar_genes) + '\n')
         rf.write('- similar_species_groups = ' + str(args.similar_species_groups) 
                  + '\n')
         rf.write('- similar_species = ' + str(args.similar_species) + '\n')
         rf.write('- similar_consensus = ' + str(args.similar_consensus) + '\n')
+        rf.write('- length_difference_consensus = ' + str(args.length_diff_consensus) + '\n')
         rf.write('- save_fastq = ' + str(args.save_fastq) + '\n')
         rf.write('- random = ' + str(args.random) + '\n')
-        rf.write('- all_reads = ' + str(args.all) + '\n')
+        rf.write('- compare_all = ' + str(args.all) + '\n')
         rf.write('- histogram_only = ' + str(args.histogram_only) + '\n')
         rf.write('- species_only = ' + str(args.species_only) + '\n')
         rf.write('-----------------------------------------------------------\n')
 #==============================================================================  
-def distance(X1,X2):  # calculate the similarity of 2 sequences
+def distance(X1,X2, mode='NW'):  # calculate the similarity of 2 sequences
     if len(X1) > len(X2): # check which one is longer
         A2 = X1
         A1 = X2
     else:
         A1 = X1
         A2 = X2
-    # if A1 is much shorter than A2, it influences the similarity
-    if len(A1)*1.05 < len(A2): 
-        idenprev = 0
-        templist = []
-        for a in range(0, len(A2) - len(A1),2): 
-            e = int(len(A1)*1.015) # leave room for inserts
-            s = edlib.align(A1, A2[a:e], task='distance')
-            distance = s['editDistance']
-            # distance = l_distance(A1, A2[a:e])
-            iden = round(1 - distance/len(A2[a:e]),3)
-            if iden >= idenprev:
-                templist.append([a,iden])
-                idenprev = iden
-            else:
-                break
-        templist.sort(key=lambda x: x[1]) # sort according to value
-        a, iden = templist[-1] # get best value
-    else:
-        # distance = l_distance(A1, A2)
-        s = edlib.align(A1, A2, task='distance')
-        distance = s['editDistance']
-        iden = round(1 - distance/len(A2),3)
-        
+    s = edlib.align(A1, A2, task='distance', mode=mode)
+    distance = s['editDistance']
+    iden = round(1 - distance/len(A2),3)
     return iden
 #==============================================================================
 def compl_reverse(self):
@@ -355,8 +348,9 @@ def read_file(self): # read the inputfile
     minlength = args.minlength
     maxlength = args.maxlength
     maxreads = args.maxreads
+    allreads = args.allreads # use all reads
     ran = args.random
-    all_reads = args.all # compare all reads with each other
+    comp_all = args.all # compare all reads with each other
     global comparelist2, num_seq, comparelist
     comparelist = []
     readlengthlist = []
@@ -375,12 +369,18 @@ def read_file(self): # read the inputfile
                 if len(record.seq) <= maxlength:
                     comparelist.append([record.id, str(record.seq), '', ''])
     total_num_seq = len(comparelist) # total number of reads passed selection
+    if total_num_seq < 5: # system hangs with only one sequence, less than 5 has no result
+        print('Number of usable sequences is lower than 5, quitting job')
+        sys.exit()
     
     for i,[w,x,y,z] in enumerate(comparelist):
         comparelist[i] = [w, x, 'u', i] # replace third pos with 'u' (unique) 
                                         # and 4th pos of each list item with 
                                         # index number
-        
+    if allreads == True:
+        if total_num_seq <= maxreads:
+            maxreads = total_num_seq     
+            
     comparelist2 = []
     
     if total_num_seq < 1000:
@@ -388,7 +388,7 @@ def read_file(self): # read the inputfile
          sentence = '--> Low number of reads, reading all '
     else:
         if ran == True:
-            if all_reads == True:
+            if comp_all == True:
                 if maxreads > total_num_seq:
                     print('Comparing all reads (-a, -all) with each other is not '
                       'possible when selecting more reads than available ('
@@ -414,7 +414,7 @@ def read_file(self): # read the inputfile
                     comparelist2.append(subcomparelist)
                 sentence = '--> Reading random '
         else:
-            if all_reads == True:
+            if comp_all == True:
                 if maxreads > total_num_seq:
                     print('Comparing all reads (-a, -all) with each other is not '
                       'possible when selecting more reads than available ('
@@ -913,9 +913,9 @@ def iden_consensus(todoqueue, outputfolder, consensus_tempfile):
     for X in iter(todoqueue.get, 'STOP'): # do stuff until infile.get returns "STOP"
         for A1, A2, y, z in X:
             idenlist = []
-            iden = distance(A1,A2)
+            iden = distance(A1,A2, mode='HW')
             idenlist.append(iden) # add iden to list
-            idenR = distance(A1,compl_reverse(A2))
+            idenR = distance(A1,compl_reverse(A2), mode='HW')
             idenlist.append(idenR) # add idenR to list
             idenlist.sort(reverse=True) # sort the list
             iden = idenlist[0] # take the biggest value
@@ -978,7 +978,9 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
     comparelist.sort(key=lambda x: x[3]) # sort list based on index number
                                          # must be done for option '-all' sequences !
     outputfolder = args.outputfolder  
-    nprocesses = args.nprocesses                              
+    nprocesses = args.nprocesses        
+    length_diff_c = args.length_diff_consensus/100 + 1 # length difference allowed for 
+                                                # consensus                     
     consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
     
     try:  # remove temporary file if exists
@@ -1047,7 +1049,7 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
                 z +=1
                 A1 = grouplist[position][-1]
                 A2 = grouplist[position2][-1]
-                if len(A1)*1.08 < len(A2) or len(A2)*1.08 < len(A1):
+                if len(A1)*length_diff_c < len(A2) or len(A2)*length_diff_c < len(A1):
                     pass  #don't compare if length of sequences differ to much
                 else:
                     todolist.append([A1, A2, y, z])
@@ -1066,17 +1068,24 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
         stringx = '...comparing consensuses '
         do_parallel(outputfolder, nprocesses, consensus_tempfile, iden_consensus, 
                       stringx)
-  
+       
         try:
             with open(consensus_tempfile, 'r') as tf:
                 temp = tf.readlines()
                 grouplist = [set(x) for x in grouplist]
             for line in temp:
-                y, z, _ = line.strip().split(',')
-                while len(grouplist[int(y)]) == 1: # check if groups points to an other group
-                    y = int(list(grouplist[int(y)])[0].replace('=', '')) # replace y to the other group
-                grouplist[int(y)].update(grouplist[int(z)]) 
-                grouplist[int(z)] = {'=' + str(y)}
+                y, z, iden = line.strip().split(',')
+                if length_diff_c > 1.08: # for larger length diff: lot of groups can be merged...
+                    if float(iden) >= 0.80: # ... if iden > 0.6
+                        while len(grouplist[int(y)]) == 1: # check if groups points to an other group
+                            y = int(list(grouplist[int(y)])[0].replace('=', '')) # replace y to the other group
+                        grouplist[int(y)].update(grouplist[int(z)]) 
+                        grouplist[int(z)] = {'=' + str(y)}
+                else:
+                    while len(grouplist[int(y)]) == 1: # check if groups points to an other group
+                        y = int(list(grouplist[int(y)])[0].replace('=', '')) # replace y to the other group
+                    grouplist[int(y)].update(grouplist[int(z)]) 
+                    grouplist[int(z)] = {'=' + str(y)}
             os.remove(os.path.join(outputfolder, 'consensus.tmp'))
         except FileNotFoundError:
             pass  
@@ -1523,7 +1532,7 @@ def consensus_direction(consensuslist):
     consensuslist = list(consensusset)
     return consensuslist
 #==============================================================================
-def compare_consensus(grouplist):
+def compare_consensus(grouplist, length_diff_c):
     # compare consensusses with each other
     similar_consensus = args.similar_consensus/100 
     outputfolder = args.outputfolder
@@ -1558,7 +1567,7 @@ def compare_consensus(grouplist):
                     z +=1
                     A1 = grouplist[position][-1]
                     A2 = grouplist[position2][-1]
-                    if len(A1)*1.08 < len(A2) or len(A2)*1.08 < len(A1):
+                    if len(A1)*length_diff_c < len(A2) or len(A2)*length_diff_c < len(A1):
                         pass  #don't compare if length of sequences differ to much
                     else:
                         todolist.append([A1, A2, y, z])
@@ -1655,13 +1664,15 @@ def rest_reads(indexes, grouplist, group_filename):
     print(group_filename + '----> similarity = ' + str(round(similar, 2)))
     k = 0
     min_similar = args.similar_species/100
+    length_diff_c = args.length_diff_consensus/100 + 1 # length difference allowed for 
+                                                # consensus in last step 
     process_consensuslist(indexes, grouplist, group_filename)                
     comparelist2, grouplist, templist, templist2 = update_groups(group_filename, 
                                                                  grouplist)
     if len(templist2) > 200: # first 3 cycles need lot of comparisons, try reduce 
                              # that by merging groups if sequences are added
         # compare consensusses with each other
-        grouplist = compare_consensus(grouplist)
+        grouplist = compare_consensus(grouplist, 1.08)
     k += 1
     while similar > min_similar: 
         while k <= 2:
@@ -1672,7 +1683,7 @@ def rest_reads(indexes, grouplist, group_filename):
                 if len(templist2) > 0 and k < 2:
                     # compare consensusses with each other
                     if len(grouplist) > 1:
-                        grouplist = compare_consensus(grouplist)  
+                        grouplist = compare_consensus(grouplist, 1.08)  
                 k += 1
             else: 
                 k = 3
@@ -1688,14 +1699,15 @@ def rest_reads(indexes, grouplist, group_filename):
                 process_consensuslist(indexes, grouplist, group_filename)
                 comparelist2, grouplist, templist, templist2 = update_groups(
                     group_filename, grouplist)
-                # grouplist = compare_consensus(grouplist) # compare consensusses with each other 
+                # grouplist = compare_consensus(grouplist, 1.08) # compare consensusses with each other 
                 k += 1
             else: 
                 comparelist2, grouplist, templist, templist2 = update_groups(
                     group_filename, grouplist)
                 k += 1
     if len(grouplist) > 1:
-        grouplist = compare_consensus(grouplist) # compare consensusses with each other 
+        # compare consensusses with each other 
+        grouplist = compare_consensus(grouplist, length_diff_c) 
 
     MYLOCK.acquire()
     comparelist2.sort(key=lambda x: x[3]) #sort list based on index number
@@ -1802,6 +1814,7 @@ def sort(group_filename):
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
+
 #==============================================================================    
 if __name__ == '__main__':
     try:
