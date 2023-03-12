@@ -11,8 +11,6 @@ For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://
 Requirements:
 
 -   Python 3
--   python3-dev, python3-setuptools, python3-pip, python3-wheel (`sudo apt-get install python3-dev python3-setuptools python3-pip python3-wheel`)
--   ~~c-implementation of Levenshtein: [https://pypi.org/project/python-Levenshtein/](https://pypi.org/project/python-Levenshtein/) (`python3 -m pip install python-Levenshtein`)~~ No longer needed in the version 2022-03-28
 - edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`)
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
@@ -27,29 +25,36 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 `-i, --input`: Input file in fastq or fasta format (auto-detect). Make sure the inputfile is named as .fasta or .fastq because it replaces the extension in parts of the script.
 
+`-o', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
+
 `-min, --minlength`: Minimum readlenght to process. Default=300
 
 `-max', '--maxlength`: Maximum readlenght to process. Default=No limit
 
 `-maxr', '--maxreads`: Maximum number of reads to process. Default=10000
 
+`-ar', '--allreads`: Use all reads from the inputfile between length limits.  This argument is still limited with '--maxreads' to have a hard limit for large files.
+
 `-np', '--nprocesses`: Number of processors to use. Default=1
 
-`-sg', '--similar_genes`: 'Similarity to sort genes in groups (value between 50 and 100). Default=80.0
+`-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
+
+`-ra', '--random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
+
+
+### Less important options:
+
+`-a', '--all`: **Compare all** selected reads **with each other**.  Only advised for a small number of reads (< 10000) because it is time-consuming.  (In contrast with the default settings where it compares batches of 1.000 with each other)
+
+`-ldc', '--length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence (value between 0 and 200). Default=8.0.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequence of the longer ones and you want to combine those in one group.
+
+`-sg', '--similar_genes`: Similarity to sort genes in groups (value between 50 and 100). Default=80.0
 
 `-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=Estimate
 
 `-ss', '--similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
 
 `-sc', '--similar_consensus`: Similarity to COMBINE groups based on the consensus sequence (value between 50 and 100). Default=96.0
-
-`-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
-
-`-ra', '--random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
-
-`-a', '--all`: Compare all selected reads with each other.  Only advised for a small number of reads (< 10000)
-
-`-o', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
 
 `-ho', '--histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
 
@@ -114,6 +119,12 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 - Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
 
 ### Release notes:
+
+2023/03/12:
+
+- option to use all reads `-ar, --allreads`. This option is still limited by the `-maxr', '--maxreads` to have a hard limit.
+- option `-ldc', '--length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequences of the longer ones and you want to combine those in one group.
+- catch "hang of amplicon_sorter" if only one read is present in the inputfile.  Now if less than 5 reads are present in the inputfile, the program exits.
 
 2022/03/28:
 - a little speed improvement (1,2 x) by using another consensus calling method (edlib).  Levenshtein plugin no longer needed.
