@@ -34,7 +34,7 @@ import statistics
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2023-03-12'  # version of the script
+version = '2023-03-24'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -95,26 +95,38 @@ def get_arguments():
                                              + " and < " + str(200.0))
         return f
 
-    def valid_file(param):  # check if input file ends on .fastq or .fasta
-        base, ext = os.path.splitext(param)
-        if ext.lower() not in ('.fasta', '.fastq'): 
-            raise argparse.ArgumentTypeError('File extension must be .fastq or .fasta') 
+    def valid_file(param): 
+        paramlist = [] # make list of files to process
+        if os.path.isfile(param): # if input is file
+            # check if input file ends on .fastq or .fasta
+            base, ext = os.path.splitext(param)
+            if ext.lower() not in ('.fasta', '.fastq'): 
+                raise argparse.ArgumentTypeError('File extension must be .fastq or .fasta') 
+            paramlist.append(param)
+        elif os.path.isdir(param): # if input is folder 
+            with os.scandir(param) as iterator:
+                for file in iterator:
+                    if file.name.lower().endswith('.fastq') or file.name.lower().endswith('.fasta'):
+                        paramlist.append(file.path)
+            paramlist.sort()
+            if len(paramlist) == 0:
+                sys.exit('Can not find files in folder to process.  File extension must be .fastq or .fasta')
+        else:
+            sys.exit('Can not find a file or folder to process.  File extension must be .fastq or .fasta')
+        param = paramlist
         return param
 
     def dir_path(string):
-        if os.path.exists(string):
-            string = os.path.join(os.getcwd(), string)
-            return string
-        else:
-            string = os.path.join(os.getcwd(), string)
+        string = os.path.join(os.getcwd(), string)
+        if not os.path.exists(string):
             os.makedirs(string) # create the folder
-            return string
+        return string
             
     parser = argparse.ArgumentParser(description='AmpliconSorter: Sort amplicons\
                                      based on identity and saves them in different\
                                     files including the consensus.' )
     parser.add_argument('-i', '--input', required=True, type = valid_file,
-                        help='Input file in fastq or fasta format')
+                        help='Input folder or file in fastq or fasta format')
     parser.add_argument('-min', '--minlength', type = int, required=False, default=300,
                         help='Minimum readlenght to process.  Default=300')
     parser.add_argument('-max', '--maxlength', type = int, required=False, 
@@ -145,9 +157,9 @@ def get_arguments():
                             sequence (value between 50 and 100). Default=96.0')  
     parser.add_argument('-ldc', '--length_diff_consensus', type = range_limited_float_0_200, 
                         required=False, default=8.0 ,
-                        help='Length difference (in %) allowed between consensuses to\
+                        help='Length difference (in percent) allowed between consensuses to\
                             COMBINE groups based on the consensus sequence\
-                                (value between 0 and 200). Default=8.0 %')                          
+                                (value between 0 and 200). Default=8.0')                          
     parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
                         help='Save the results also in fastq files (fastq files\
                             will not contain the consensus sequence)')
@@ -157,7 +169,7 @@ def get_arguments():
                         help='Compare all selected reads with each other.  Only\
                             advised for a small number of reads (< 10000)')
     parser.add_argument('-o', '--outputfolder', type=dir_path, required=False, 
-                        default='./', help='Save the results in the specified\
+                         help='Save the results in the specified\
                             outputfolder. Default = current working directory')
     parser.add_argument('-ho', '--histogram_only', action = 'store_true',
                         help='Only creates a read length histogram.')
@@ -175,8 +187,9 @@ def save_arguments(): # save all settings in the result.txt file
         rf.write('-----------------------------------------------------------\n')
         rf.write('- date and time = ' + datetime.datetime.now().strftime(
             "%B %d, %Y, %I:%M%p") + '\n')    
-        rf.write('- input file = ' + args.input + '\n')
-        rf.write('- output folder = ' + args.outputfolder + '\n')
+        rf.write('- input file = ' + os.path.abspath(infolder_file) + '\n')
+        # rf.write('- input file = ' + (','.join(args.input)) + '\n')
+        rf.write('- output folder = ' + os.path.normpath(args.outputfolder) + '\n')
         rf.write('- minlength = ' + str(args.minlength) + '\n')
         rf.write('- maxlength = ' + str(args.maxlength) + '\n')
         rf.write('- maxreads = ' + str(args.maxreads) + '\n')
@@ -1319,6 +1332,13 @@ def filter_seq(group_filename, grouplist, indexes):
         except ZeroDivisionError:
             pass
     MYLOCK.release()
+    
+    try:  # remove temporary file if exists
+        for x in glob.glob(os.path.join(outputfolder, '*.todo')):
+            os.remove(x)
+        time.sleep(1)
+    except FileNotFoundError:
+        pass
 #==============================================================================
 def process_consensuslist(indexes, grouplist, group_filename):  
     # compare each sequence with consensus1, consensus2,...
@@ -1814,25 +1834,41 @@ def sort(group_filename):
         grouplist = rest_reads(indexes, grouplist, group_filename)
         filter_seq(group_filename, grouplist, indexes)
         os.remove(os.path.join(outputfolder, group_filename))
-
-#==============================================================================    
+#==============================================================================
+   
 if __name__ == '__main__':
     try:
         args = get_arguments()
         check_version(version)
         if args.similar_species_groups is None:
             args.similar_species_groups = 'Estimate'
-        save_arguments() # write all settings in the results.txt file
-        infolder_file = args.input
-        infolder, infile = os.path.split(os.path.realpath(infolder_file))
-        tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
-                                                                    '_compare.tmp')
-        saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
-            '.fasta', '_comparelist.pickle')
-        if args.species_only == True:
-            sort_groups()
-        else:
-            sort_genes()
-            sort_groups()
+        init_outputfolder = args.outputfolder
+        infolder_file_list = args.input
+        for infolder_file in infolder_file_list:
+            infolder, infile = os.path.split(os.path.realpath(infolder_file))
+            tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
+                                                                        '_compare.tmp')
+            saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
+                '.fasta', '_comparelist.pickle')
+            outfolder, ext = os.path.splitext(infile)
+            if init_outputfolder:
+                if outfolder not in init_outputfolder:
+                    try:
+                        args.outputfolder = os.path.join(init_outputfolder, outfolder)
+                        os.makedirs(args.outputfolder)
+                    except FileExistsError:
+                        pass
+            else:
+                try:
+                    args.outputfolder = os.path.join(infolder, outfolder)
+                    os.makedirs(args.outputfolder)
+                except FileExistsError:
+                    pass
+            save_arguments() # write all settings in the results.txt file
+            if args.species_only == True:
+                sort_groups()
+            else:
+                sort_genes()
+                sort_groups()
     except KeyboardInterrupt:
         sys.exit()
