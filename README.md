@@ -23,46 +23,46 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 ### Options:
 
-`-i, --input`: Input file in fastq or fasta format (auto-detect). Make sure the inputfile is named as .fasta or .fastq because it replaces the extension in parts of the script.
+`-i, --input`: Input **file** in fastq or fasta format.  Also a **folder** can be given as input and will be scanned for .fasta or .fastq files to process.  Make sure the input file(s) is (are) named as .fasta or .fastq because it replaces the extension in parts of the script.
 
-`-o', '--outputfolder`: Save the results in the specified outputfolder. Default = current working directory
+`-o, --outputfolder`: Save the results in the specified outputfolder. Default = same folder as the inputfile in a subfolder with the name of the input file.
 
 `-min, --minlength`: Minimum readlenght to process. Default=300
 
-`-max', '--maxlength`: Maximum readlenght to process. Default=No limit
+`-max, --maxlength`: Maximum readlenght to process. Default=No limit
 
-`-maxr', '--maxreads`: Maximum number of reads to process. Default=10000
+`-maxr, --maxreads`: Maximum number of reads to process. Default=10000
 
-`-ar', '--allreads`: Use all reads from the inputfile between length limits.  This argument is still limited with '--maxreads' to have a hard limit for large files.
+`-ar, --allreads`: Use all reads from the inputfile between length limits.  This argument is still limited with `--maxreads` to have a hard limit for large files.
 
-`-np', '--nprocesses`: Number of processors to use. Default=1
+`-np, --nprocesses`: Number of processors to use. Default=1
 
-`-sfq', '--save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
+`-sfq, --save_fastq`: Save the results also in fastq files (fastq files will not contain the consensus sequence)
 
-`-ra', '--random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
+`-ra, --random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
 
 
 ### Less important options:
 
-`-a', '--all`: **Compare all** selected reads **with each other**.  Only advised for a small number of reads (< 10000) because it is time-consuming.  (In contrast with the default settings where it compares batches of 1.000 with each other)
+`-a, --all`: **Compare all** selected reads **with each other**.  Only advised for a small number of reads (< 10000) because it is time-consuming.  (In contrast with the default settings where it compares batches of 1.000 with each other)
 
-`-ldc', '--length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence (value between 0 and 200). Default=8.0.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequence of the longer ones and you want to combine those in one group.
+`-ldc, --length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence (value between 0 and 200). Default=8.0.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequence of the longer ones and you want to combine those in one group.
 
-`-sg', '--similar_genes`: Similarity to sort genes in groups (value between 50 and 100). Default=80.0
+`-sg, --similar_genes`: Similarity to sort genes in groups (value between 50 and 100). Default=80.0
 
-`-ssg', '--similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=Estimate
+`-ssg, --similar_species_groups`: Similarity to CREATE species groups (value between 50 and 100). Default=Estimate
 
-`-ss', '--similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
+`-ss, --similar_species`: Similarity to ADD sequences to a species group (value between 50 and 100). Default=85.0
 
-`-sc', '--similar_consensus`: Similarity to COMBINE groups based on the consensus sequence (value between 50 and 100). Default=96.0
+`-sc, --similar_consensus`: Similarity to COMBINE groups based on the consensus sequence (value between 50 and 100). Default=96.0
 
-`-ho', '--histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
+`-ho, --histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
 
-`-so', '--species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.
+`-so, --species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.
 
 ### How it works (in short):
 
-1.  The script reads the inputfile and creates a read length histogram of all the reads in the file.
+1.  The script reads the inputfile and can optionally create a read length histogram of all the reads in the file.
 2.  It starts processing a selection of the reads (based on minlength, maxlenght, maxreads). It saves the result in .group files that contain reads of the same gene (e.g. group_1 with 18S reads, group_2 with COI reads, group_3 with ITS reads).
 3.  It processes the group files to sort out the genes to species or genus level and saves this to different files. (e.g. file_1_1.fasta is 18S from species1, file1_2.fasta is 18S from species2, ...)
 4.  Each outputfile contains at the end the consensus file of the sequences in the file.
@@ -78,9 +78,17 @@ Filter your inputfile for reads >= Q12 with NanoFilt ([https://github.com/wdecos
 Copy the Amplicon_sorter.py script in the same folder as your inputfile.
 
 ### Command examples:
+*Process several files in inputfolder:*
+
+`python3 amplicon_sorter.py -i infolder -min 650 -max 1200 -ar -maxr 100000 -np 8`: 
+
+Process all files in 'infolder' with length between 650 and 1200 bp, use all reads available, with a maximum of 100000 reads if more are available, process on 8 cores.  The result will be saved in the 'infolder' in subfolders with the same name as the inputfiles.
+
 *Produce a read length histogram of your inputfile:*
 
-`python3 amplicon_sorter.py -i infile.fastq –o outputfolder -min 650 -max 750 -ho`: produce the readlength histogram of infile.fastq in folder outputfolder.  This gives you the information on the number of reads between 650 and 750 bp.
+`python3 amplicon_sorter.py -i infile.fastq –o outputfolder -min 650 -max 750 -ho`: 
+
+produce the readlength histogram of infile.fastq in folder outputfolder.  This gives you the information on the number of reads between 650 and 750 bp.
 
 *Sample with one species amplicon of 750 bp:*
 
@@ -120,10 +128,16 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2023/03/24:
+
+- changed the `-i, --input` possibilities.  A **file** or **folder** can be input.  When it is a file, only that file will be processed.  When it is a folder, it will scan the folder for .fasta or .fastq files and process them all.  Keep in mind that all files in a folder will be processed with the same options. 
+- changed the `-o', '--outputfolder` option.  By default it will save the data in same folder as the inputfolder in a subfolder that has the same name as the inputfile.  (Results from BC103.fasta will automatically be saved in the folder BC103)  This is done for all files in a input folder that are processed.  When another outputfolder is given as option, the results will be saved in a subfolder in  that folder with the name of the inputfile.
+- fixed a small error in the `-h, --help` display (Thanks russellsmithies for noticing).  
+
 2023/03/12:
 
-- option to use all reads `-ar, --allreads`. This option is still limited by the `-maxr', '--maxreads` to have a hard limit.
-- option `-ldc', '--length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequences of the longer ones and you want to combine those in one group.
+- option to use all reads `-ar, --allreads`. This option is still limited by the `-maxr, --maxreads` to have a hard limit.
+- option `-ldc, --length_diff_consensus`: Length difference (in %) allowed between consensuses to COMBINE groups based on the consensus sequence.  This can be interesting if you have amplicons of different length, the shorter ones are nested sequences of the longer ones and you want to combine those in one group.
 - catch "hang of amplicon_sorter" if only one read is present in the inputfile.  Now if less than 5 reads are present in the inputfile, the program exits.
 
 2022/03/28:
