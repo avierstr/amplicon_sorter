@@ -1,4 +1,3 @@
-
 # amplicon_sorter
 
 Amplicon sorter is a tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
@@ -41,6 +40,9 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 `-ra, --random`: Takes random reads from the inputfile.  The script does NOT compare al sequences with each other, it compares batches of 1.000 with each other.  You can use this option and sample reads several times and compare them with other reads in other batches.  So it is possible to have an inputfile with 10.000 reads and sample random 20.000 reads from that inputfile.  The script will run 20 batches of 1.000 reads.  This way, the chance to find more reads with high similarity is increasing when there are a lot of different amplicons in the sample.  No need to do that with samples with 1 or 2 amplicons.
 
+`-aln, --alignment`: option to save the alignment that is used to create the consensus (max 200 reads, fasta format).  Can be interesting to check how the consensus is created.
+
+`-amb, --ambiguous`: option to save the consensus with ambiguous nucleotides,  e. g. to find SNP positions (this is still a bit experimental, sometimes errors at the very beginning and end of the consensus).
 
 ### Less important options:
 
@@ -58,7 +60,7 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 `-ho, --histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
 
-`-so, --species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.
+~~`-so, --species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.~~
 
 ### How it works (in short):
 
@@ -121,12 +123,20 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Todo:
 
-- Try to improve speed for comparison of sequences.
-- Try to fine tune sorting to species level.  If there are species in the sample that are more than 94% similar, the script has difficulties to separate them.  Species with a higher similarity are often grouped together and give a lower consensus sequence because it is the "average" of 2 or more closely related species.
-- Improve random sampling to sequences of the same length and not to all reads.
-- Check for bug: there is sometimes an error in the percentage of reads assigned per group (sometimes > 100%).  This has no effect on the sorting or consensus made, only on the information how many reads are assigned.
+- Try to fine tune sorting to species level.  If there are species in the sample that are more than 95-96% similar, the script has difficulties to separate them.  Species with a higher similarity are often grouped together and give a lower consensus sequence because it is the "average" of 2 or more closely related species.
 
 ### Release notes:
+
+2023/06/19:
+
+- added option `-aln, --alignment` to save the alignment used to create the consensus.   
+- added option `-amb, --ambiguous` to save the consensus with ambiguous nucleotides,  e. g. to find SNP positions (this is still a bit experimental).
+- a few minor bug fixes (load all sequences in capital letters (was issue with Minibar de-multiplexed files where primer sequences were in small letters), ssg value could be incorrect when processing several files from different flow cell types).
+- improvement of the consensus in homo-polymer region.
+- removed the `-so, --species_only` command line option and better cleanup of temporary files.
+- better multiprocessing at the first step for smaller files.
+- give a more logic % of the reads assigned in the result.txt file.
+- save the reads that were not assigned in any groups to a separate file  (xxx_no_group_unique.fasta)
 
 2023/03/24:
 
@@ -241,8 +251,4 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
-
-
-
-
 
