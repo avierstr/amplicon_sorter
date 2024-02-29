@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 
-Python > 3.8
+Python 3.8
 
 @author: Andy Vierstraete
 
@@ -33,7 +33,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2024-02-20'  # version of the script
+version = '2023-06-19'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -685,11 +685,6 @@ def process_list(self, tempfile): # make files to do comparisons
                     for dirpath, dirnames, filenames in os.walk(outputfolder):
                         filenames = [i for i in filenames if i.endswith('.todo')]
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
-        if tl == 0:
-            print('No reads to compare, exiting...')
-            with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
-                rf.write('No reads to compare, exiting...')
-            os._exit(1)
         with open(todofilename, 'wb', buffering=0) as wf:
             pickle.dump(todolist, wf)
         todolist = []
