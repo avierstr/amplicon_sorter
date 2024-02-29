@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 
-Python 3.8
+Python > 3.8
 
 @author: Andy Vierstraete
 
@@ -33,14 +33,14 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist
 
-version = '2023-06-19'  # version of the script
+version = '2024-02-20'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
-        link = urllib.request.urlopen('https://github.com/avierstr/amplicon_sorter'
+        link = urllib.request.urlopen('https://github.com/avierstr/amplicon_sorter'\
                                       '/blob/master/amplicon_sorter.py').read()
         # find the version-date part of the last version on the webpage
-        datepart = re.compile(r'(version</span>.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
+        datepart = re.compile(r'(version.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
         x = datepart.search(str(link))
         # the 2nd group of the search is the date
         latest_version = x.group(2)
@@ -685,6 +685,11 @@ def process_list(self, tempfile): # make files to do comparisons
                     for dirpath, dirnames, filenames in os.walk(outputfolder):
                         filenames = [i for i in filenames if i.endswith('.todo')]
         todofilename = os.path.join(outputfolder, 'file_' + str(k) + '.todo')
+        if tl == 0:
+            print('No reads to compare, exiting...')
+            with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
+                rf.write('No reads to compare, exiting...')
+            os._exit(1)
         with open(todofilename, 'wb', buffering=0) as wf:
             pickle.dump(todolist, wf)
         todolist = []
