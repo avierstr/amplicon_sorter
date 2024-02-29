@@ -127,6 +127,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2024/02/20:
+- automatic download of latest version did not work anymore.  Fixed.
+- fixed a rarely occurring hang of the program if only a few reads were used as input that were too different to compare.  Now the program exits.
+
 2023/06/19:
 
 - added option `-aln, --alignment` to save the alignment used to create the consensus.   
@@ -251,4 +255,5 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
+
 
