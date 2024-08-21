@@ -17,6 +17,9 @@ Requirements:
 ### Citation:
 Vierstraete, A. R., & Braeckman, B. P. (2022). Amplicon_sorter: A tool for reference-free amplicon sorting based on sequence similarity and for building consensus sequences. _Ecology and Evolution_, 12, e8603. [https://doi.org/10.1002/ece3.8603](https://doi.org/10.1002/ece3.8603)
 
+### Licence
+GNU GPL 3.0
+
 ### Keywords
 amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference free, biodiversity, DNA barcoding, metabarcoding, metagenetics, PCR, sorting
 
