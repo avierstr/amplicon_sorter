@@ -5,12 +5,12 @@ The limit for separating closely related species within a sample is currently ar
 
 For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
 
-(Only works on Linux because it uses multiprocessing)
+(Only works on Linux/Unix and Mac because it uses multiprocessing.  Mac with M1 processor can cause problems because of the multiprocessing)
 
 Requirements:
 
 -   Python 3
-- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`)
+- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`) (or `conda install bioconda::python-edlib`)
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
 
@@ -63,7 +63,8 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 `-ho, --histogram_only`: Only makes a read length histogram.  Can be interesting to see what the minlength and maxlength setting should be.
 
-~~`-so, --species_only`: Only creates species groups and sort to species level.  This can only be done if the whole script has run once without this option.  This is to save time if you play with the `--similar_species` and/or `--similar_species_groups` parameters.  It is using the same `--maxreads`, `--minlength`, `--maxlength` data that is produced in the first part of the script, so those 3 parameters are ignored here.~~
+`-mac, --macOS`: Option to try if amplicon_sorter crashes on Mac with a M1 processor (I did not get confirmation from users if this works or not).
+
 
 ### How it works (in short):
 
@@ -71,7 +72,7 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 2.  It starts processing a selection of the reads (based on minlength, maxlenght, maxreads). It saves the result in .group files that contain reads of the same gene (e.g. group_1 with 18S reads, group_2 with COI reads, group_3 with ITS reads).
 3.  It processes the group files to sort out the genes to species or genus level and saves this to different files. (e.g. file_1_1.fasta is 18S from species1, file1_2.fasta is 18S from species2, ...)
 4.  Each outputfile contains at the end the consensus file of the sequences in the file.
-5.  Files are produced per group with all consensus sequences for that group. A file is produced with all consensus sequences of all groups.
+5.  ~~Files are produced per group with all consensus sequences for that group.~~ A file is produced with all consensus sequences of all groups.
 6.  Files are produced with 'unique' sequences (script does not find a group where it belongs to according to the settings)
 
 
@@ -126,9 +127,16 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Todo:
 
-- Try to fine tune sorting to species level.  If there are species in the sample that are more than 95-96% similar, the script has difficulties to separate them.  Species with a higher similarity are often grouped together and give a lower consensus sequence because it is the "average" of 2 or more closely related species.
+
 
 ### Release notes:
+
+2024/10/07:
+- a 'result.csv' file is saved with the number of reads per barcode.
+- a global 'consensusfile.fasta' is saved with all consensus sequences from the barcodes that were processed in one go.
+- The consensus file per group is no longer produced, only the consensus file for all groups per barcode is saved.
+- If the sample does not contain many reads, the "finetune" cycle sometimes ends in no result.  In this case, the finetune cycle is skipped.
+- On a few rare occasions, the programs hangs.  In the 2024_02_20 version, the program exited.  This was problematic when you processed a folder with several barcodes, it did not process the remaining barcodes.  Now amplicon_sorter will continue with the remaining files.
 
 2024/02/20:
 - automatic download of latest version did not work anymore.  Fixed.
@@ -258,5 +266,6 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 -   Fasta or fastq files possible as input (autodetect).
 -   Fastq files as output option (when input is fastq) (`--save_fastq`).
+
 
 
