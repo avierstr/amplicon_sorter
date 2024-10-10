@@ -31,14 +31,14 @@ import urllib.request
 import re
 from itertools import zip_longest
 
-global tempfile, infile, num_seq, saved_comparelist, comparelist
+global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2024-02-20'  # version of the script
+version = '2024-10-07'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
-        link = urllib.request.urlopen('https://github.com/avierstr/amplicon_sorter'\
-                                      '/blob/master/amplicon_sorter.py').read()
+        link = urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
+                               'amplicon_sorter/master/amplicon_sorter.py').read()
         # find the version-date part of the last version on the webpage
         datepart = re.compile(r'(version.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
         x = datepart.search(str(link))
@@ -177,6 +177,9 @@ def get_arguments():
                             outputfolder. Default = input folder')
     parser.add_argument('-ho', '--histogram_only', action = 'store_true',
                         help='Only creates a read length histogram.')
+    parser.add_argument('-mac', '--macOS', action = 'store_true',
+                        help='Option to try when amplicon_sorter crashes on \
+                            Mac with M1 processor.')
 
     args = parser.parse_args()
     return args
@@ -540,8 +543,8 @@ def read_file(self): # read the inputfile
     total_num_seq = len(comparelist) # total number of reads passed selection
     if total_num_seq < 5: # system hangs with only one sequence, less than 5 has no result
         print('Number of usable sequences is lower than 5, quitting job')
-        sys.exit()
-    
+        # sys.exit()
+        raise Exception # go to the next file
     for i,[w,x,y,z] in enumerate(comparelist):
         comparelist[i] = [w, x, 'u', i] # replace third pos with 'u' (unique) 
                                         # and 4th pos of each list item with 
@@ -589,7 +592,8 @@ def read_file(self): # read the inputfile
                       'possible when selecting more reads than available ('
                       + str(maxreads) + ' selected - ' + str(total_num_seq) + 
                       ' available)')
-                    sys.exit()
+                    # sys.exit() 
+                    raise Exception # go to the next file
                 else:
                     comparelist2.append(comparelist[:maxreads])
                     sentence = '--> Reading and comparing all '
@@ -614,7 +618,8 @@ def read_file(self): # read the inputfile
         num_seq = sum(len(x) for x in comparelist2) # number of sample reads
         print('--> There are ' + str(total_num_seq) + ' sequences between ' + 
               str(minlength) + ' and ' + str(maxlength) + 'bp')
-        sys.exit()
+        # sys.exit()  
+        raise Exception # go to the next file 
     else:
         # figure(readlengthlist, total_num_seq) # make a read length histogram 
         num_seq = sum(len(x) for x in comparelist2) # number of sample reads
@@ -646,7 +651,7 @@ def process_list(self, tempfile): # make files to do comparisons
         pass
     
     def queuer(): # function to place items in files for the queue
-        global len_todolist
+        global len_todolist, tl
         l = 0  # length of todolist
         k = 0  # number of todofiles
         tl = 0 # total length todolist
@@ -689,7 +694,7 @@ def process_list(self, tempfile): # make files to do comparisons
             print('No reads to compare, exiting...')
             with open(os.path.join(outputfolder,'results.txt'), 'a') as rf:
                 rf.write('No reads to compare, exiting...')
-            os._exit(1)
+                tl = -1
         with open(todofilename, 'wb', buffering=0) as wf:
             pickle.dump(todolist, wf)
         todolist = []
@@ -698,7 +703,7 @@ def process_list(self, tempfile): # make files to do comparisons
 
         len_todolist = tl
        
-        return len_todolist
+        return len_todolist  #probleem zit in len_todolist dat 0 blijft
      
     def feeder(): # function to feed the queue in parts to save memory
         global len_todolist
@@ -746,10 +751,13 @@ def process_list(self, tempfile): # make files to do comparisons
            # Optionally try to gracefully shut down the worker processes here.
             p.terminate()
             p.join()
-    
+            
     Thread(target = queuer).start()
+    time.sleep(5)
+    if tl == -1:
+        raise Exception # go to the next file
     Thread(target = feeder).start()
-    time.sleep(10)
+
     c = Thread(target = consumer)
     c.start()
     c.join() # wait until c has finished its work
@@ -854,6 +862,7 @@ def finetune(grouplist):
     #--------------------------------------------------------------------------
     addlist = []
     for i, group in enumerate(grouplist):
+        group2 = group[:]
         readlist = []
         for n in group:
             if n.isalpha():
@@ -917,6 +926,9 @@ def finetune(grouplist):
                         grouplist[i].append(x[0])
                         readlist[j] = []
                 grouplist[i].append(consensus)
+            if len(grouplist[i]) == 0:
+                print('---finetune did not improve it')
+                grouplist[i] = group2
             # process group A
             readlist = [x for x in readlist if len(x) > 0]
             if len(readlist) > 5:
@@ -1448,7 +1460,10 @@ def filter_seq(group_filename, grouplist, indexes):
     MYLOCK.acquire()
     if fq == True:
         # index the input fastq file
-        record_dict = SeqIO.index(os.path.join(infolder, infile), 'fastq')  
+        try:
+            record_dict = SeqIO.index(os.path.join(infolder, infile), 'fastq')
+        except ValueError as e:
+            print(e)
     for rec_id, seq, scores, index in comparelist2:
         if str(index) in indexes:
             if scores == 'u':  # sequences that have no similarity with others
@@ -1474,16 +1489,16 @@ def filter_seq(group_filename, grouplist, indexes):
             if y.isdigit(): # list contains consensus sequence, don't count those
                 grouped_seq += 1
                 
-    consensusfilename = os.path.join(outputfolder, group_filename).replace(
-        '.group', '_consensussequences.fasta') # group consensusfile
+    # consensusfilename = os.path.join(outputfolder, group_filename).replace(
+    #     '.group', '_consensussequences.fasta') # group consensusfile
     # total consensusfile
     consensusfile = os.path.join(outputfolder, infile).replace('.fasta', 
     '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta')
     
-    try:  # remove  file if exists
-        os.remove(os.path.join(outputfolder, consensusfilename))
-    except FileNotFoundError:
-        pass 
+    # try:  # remove  file if exists
+    #     os.remove(os.path.join(outputfolder, consensusfilename))
+    # except FileNotFoundError:
+    #     pass 
 
     MYLOCK.acquire()       
     for j, x in enumerate(grouplist):
@@ -1496,12 +1511,22 @@ def filter_seq(group_filename, grouplist, indexes):
             if y.isalpha(): # if it is a sequence
                 with open(outputfile, 'a') as outputf:
                     outputf.write('>consensus' + '\n' + y + '\n')
-                with open(consensusfilename, 'a') as outputf:
-                    outputf.write('>consensus_' + str(consensusname) + '(' +
-                                  str(len(x)-1) + ')\n' + y + '\n')
+                # with open(consensusfilename, 'a') as outputf:
+                #     outputf.write('>consensus_' + str(consensusname) + '(' +
+                #                   str(len(x)-1) + ')\n' + y + '\n')
                 with open(consensusfile, 'a') as outputf:
                     outputf.write('>consensus_' + str(consensusname) + '(' + 
                                   str(len(x)-1) + ')\n' + y + '\n')
+                with open(os.path.join(init_outputfolder, 'consensusfile.fasta'), 'a') as outpf:
+                    outpf.write('>consensus_' + str(consensusname) + '(' + 
+                                  str(len(x)-1) + ')\n' + y + '\n')
+                    
+                with open(os.path.join(init_outputfolder, 'results.csv'), 'r') as rc:
+                    l = rc.readlines()
+                    col = l[0].count(',') # count number of files in first line
+                with open(os.path.join(init_outputfolder, 'results.csv'), 'w') as rc:
+                    rc.writelines(l)
+                    rc.write(consensusname + col*', ' + str(len(x)-1) + '\n')
 
             elif y.isdigit():
                 t += 1 # count number of sequences in group
@@ -1943,7 +1968,7 @@ def rest_reads(indexes, grouplist, group_filename):
 
 #==============================================================================
 def sort_genes(): # read the input file and sort sequences according to gene groups
-    global saved_comparelist, comparelist2    
+    global saved_comparelist, comparelist2
     outputfolder = args.outputfolder
     try:
         filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
@@ -1978,6 +2003,13 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
     with open(os.path.join(outputfolder,'results.txt'), 'w') as rf:
         for line in c:
             rf.write(line)
+    with open(os.path.join(init_outputfolder, 'results.csv'), 'r') as rc:
+        l = rc.readlines()
+        l[0] = l[0].strip() + ', ' + filename.replace('_*', '') + '\n' # add name to first line
+        col = l[0].count(',')
+    with open(os.path.join(init_outputfolder, 'results.csv'), 'w') as rc:
+        rc.writelines(l)
+        rc.write('Total' + col*', ' + str(len(comparelist)) + '\n')
 #==============================================================================
 def sort_groups(): # read the gene groups and sort sequences to species level
     global comparelist, comparelist2, resultlist, num_seq, saved_comparelist
@@ -2047,6 +2079,8 @@ def sort(group_filename):
 if __name__ == '__main__':
     try:
         args = get_arguments()
+        if args.macOS is True:
+            multiprocessing.set_start_method('fork')
         check_version(version)
         if args.similar_species_groups is None: # needed if multiple files are done
             ssg = 'Estimate'                    # otherwise it uses the same value for all
@@ -2055,31 +2089,42 @@ if __name__ == '__main__':
         init_outputfolder = args.outputfolder
         infolder_file_list = args.input
         for infolder_file in infolder_file_list:
-            if ssg == 'Estimate':
-                args.similar_species_groups = 'Estimate'
-            infolder, infile = os.path.split(os.path.realpath(infolder_file))
-            tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
-                                                                        '_compare.tmp')
-            saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
-                '.fasta', '_comparelist.pickle')
-            outfolder, ext = os.path.splitext(infile)
-            if init_outputfolder:
-                if outfolder not in init_outputfolder:
+            try:
+                if ssg == 'Estimate':
+                    args.similar_species_groups = 'Estimate'
+                infolder, infile = os.path.split(os.path.realpath(infolder_file))
+                print(infile)
+                tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
+                                                                            '_compare.tmp')
+                saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
+                    '.fasta', '_comparelist.pickle')
+                outfolder, ext = os.path.splitext(infile)
+                if init_outputfolder:
+                    if outfolder not in init_outputfolder:
+                        try:
+                            args.outputfolder = os.path.join(init_outputfolder, outfolder)
+                            os.makedirs(args.outputfolder)
+                        except FileExistsError:
+                            pass
+                else:
+                    init_outputfolder = infolder
                     try:
-                        args.outputfolder = os.path.join(init_outputfolder, outfolder)
+                        args.outputfolder = os.path.join(infolder, outfolder)
                         os.makedirs(args.outputfolder)
                     except FileExistsError:
                         pass
-            else:
-                try:
-                    args.outputfolder = os.path.join(infolder, outfolder)
-                    os.makedirs(args.outputfolder)
-                except FileExistsError:
-                    pass
-            save_arguments() # write all settings in the results.txt file
-            sort_genes()
-            sort_groups()
-            os.remove(tempfile)
-            os.remove(saved_comparelist)
+                save_arguments() # write all settings in the results.txt file
+                try: # initialise csv result file with one line
+                    with open(os.path.join(init_outputfolder, 'results.csv'), 'r') as rc:
+                        _ = rc.readline()
+                except FileNotFoundError:
+                    with open(os.path.join(init_outputfolder, 'results.csv'), 'w') as rc:
+                        rc.write(' \n')
+                sort_genes()
+                sort_groups()
+                os.remove(tempfile)
+                os.remove(saved_comparelist)
+            except Exception: 
+                continue
     except KeyboardInterrupt:
         sys.exit()
