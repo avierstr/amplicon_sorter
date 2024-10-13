@@ -12,7 +12,7 @@ For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://
 Requirements:
 
 -   Python 3
-- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`) (or `conda install bioconda::python-edlib`)
+- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`) (or `conda install bioconda::python-edlib`) (or Win64/OSX64: `conda install conda-forge::edlib`)
 -   biopyton (`sudo apt-get install python3-biopython`)
 -   matplotlib (`sudo apt-get install python3-matplotlib`)
 
