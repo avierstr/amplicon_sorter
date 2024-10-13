@@ -33,7 +33,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2024-10-07'  # version of the script
+version = '2024-10-13'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -751,15 +751,14 @@ def process_list(self, tempfile): # make files to do comparisons
            # Optionally try to gracefully shut down the worker processes here.
             p.terminate()
             p.join()
-            
+    
+    c = Thread(target = consumer)
+    c.start()        
     Thread(target = queuer).start()
     time.sleep(5)
     if tl == -1:
         raise Exception # go to the next file
     Thread(target = feeder).start()
-
-    c = Thread(target = consumer)
-    c.start()
     c.join() # wait until c has finished its work
 #==============================================================================
 def similarity(todoqueue, tempfile): # process files for similarity 
