@@ -1,3 +1,5 @@
+
+
 # amplicon_sorter
 
 Amplicon sorter is a tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
@@ -130,6 +132,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 ### Release notes:
+
+2024/10/13:
+
+ - I still noticed some rare occurring the program hangs without error messages.  This version with a small change did not hang on the same testfiles.
 
 2024/10/07:
 - a 'result.csv' file is saved with the number of reads per barcode.
@@ -269,3 +275,5 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 
+
+> Written with [StackEdit](https://stackedit.io/).
