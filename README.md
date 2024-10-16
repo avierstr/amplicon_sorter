@@ -1,5 +1,3 @@
-
-
 # amplicon_sorter
 
 Amplicon sorter is a tool for reference-free sorting of ONT sequenced amplicons based on their similarity in sequence and length and for building solid consensus sequences.
@@ -7,14 +5,17 @@ The limit for separating closely related species within a sample is currently ar
 
 For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
 
-(Only works on Linux/Unix and Mac because it uses multiprocessing.  Mac with M1 processor can cause problems because of the multiprocessing)
+**2 versions:** 
+- Linux, Unix and Mac without M1 processor: "amplicons_sorter.py" (multiprocessing version).  
+- Windows, Mac with M1 processor: "amplicons_sorter_single.py" (single core processing version). 
 
-Requirements:
+**Requirements:**
 
--   Python 3
-- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (`python3 -m pip install edlib`) (or `conda install bioconda::python-edlib`) (or Win64/OSX64: `conda install conda-forge::edlib`)
--   biopyton (`sudo apt-get install python3-biopython`)
--   matplotlib (`sudo apt-get install python3-matplotlib`)
+- Python 3
+- edlib: Lightweight, super fast C/C++ library for sequence alignment using edit (Levenshtein) distance ([https://pypi.org/project/edlib/#description](https://pypi.org/project/edlib/#description)) (pip: `python3 -m pip install edlib` or conda: `conda install bioconda::python-edlib`) 
+(for Win64: pip: `python -m pip install edlib` or conda: `conda install conda-forge::edlib`)
+-   biopyton (pip: `pip install biopython` or conda: `conda install biopython` or in linux `sudo apt-get install python3-biopython`)
+-   matplotlib (pip: `pip install matplotlib` or conda: `conda install matplotlib` or in Linux: `sudo apt-get install python3-matplotlib`)
 
 ### Citation:
 Vierstraete, A. R., & Braeckman, B. P. (2022). Amplicon_sorter: A tool for reference-free amplicon sorting based on sequence similarity and for building consensus sequences. _Ecology and Evolution_, 12, e8603. [https://doi.org/10.1002/ece3.8603](https://doi.org/10.1002/ece3.8603)
@@ -132,6 +133,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 ### Release notes:
+
+2024/10/16:
+
+- Added 'amplicon_sorter_single.py' version.  This is a single core version that works in Windows and Mac with an M1 processor.  
 
 2024/10/13:
 
@@ -277,3 +282,4 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 > Written with [StackEdit](https://stackedit.io/).
+
