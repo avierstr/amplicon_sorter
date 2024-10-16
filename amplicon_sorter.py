@@ -33,12 +33,12 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2024-10-13'  # version of the script
+version = '2024-10-16'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
         link = urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
-                               'amplicon_sorter/master/amplicon_sorter.py').read()
+                                      'amplicon_sorter/refs/heads/master/amplicon_sorter.py').read()
         # find the version-date part of the last version on the webpage
         datepart = re.compile(r'(version.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
         x = datepart.search(str(link))
@@ -49,9 +49,9 @@ def check_version(version):
             version_name = 'amplicon_sorter_' + latest_version + '.py' 
             # download latest version
             urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
-                                   'amplicon_sorter/master/amplicon_sorter.py')
-            urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr'
-                                       '/amplicon_sorter/master/amplicon_sorter.py',
+                                   'amplicon_sorter/refs/heads/master/amplicon_sorter.py')
+            urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr/'
+                                       'amplicon_sorter/refs/heads/master/amplicon_sorter.py',
                                        version_name)
             print('\n =====================================================\n'
                   '| NEW VERSION OF AMPLICON_SORTER AVAILABLE            |\n'
@@ -721,7 +721,7 @@ def process_list(self, tempfile): # make files to do comparisons
                         sublist = pickle.load(rf)
                         todoqueue.put(sublist, block=True) 
                         time.sleep(2)
-                        os.remove(os.path.join(outputfolder, name))
+                    os.remove(os.path.join(outputfolder, name))
         else: # feed all the rest when finished making todolist
             for dirpath, dirnames, filenames in os.walk(outputfolder):
                 filenames = [i for i in filenames if i.endswith('.todo')]
@@ -733,7 +733,7 @@ def process_list(self, tempfile): # make files to do comparisons
                         sublist = pickle.load(rf)
                         todoqueue.put(sublist, block=True)
                         time.sleep(2)
-                        os.remove(os.path.join(outputfolder, name))
+                    os.remove(os.path.join(outputfolder, name))
             for i in range(nprocesses): # put 'STOP' at the end of the queue 
                                         # for every process
                 todoqueue.put("STOP")    
@@ -1164,23 +1164,23 @@ def do_parallel(outputfolder, nprocesses, consensus_tempfile, make_consensus,
                     sublist = todolist[b:e]
                     todoqueue.put(sublist)
                 time.sleep(2)
-                os.remove(os.path.join(outputfolder, name))
-                try:
-                    process = [Process(target=make_consensus, args=(todoqueue, 
-                            outputfolder, consensus_tempfile, group_filename,)) for x in range(nprocesses)]
-                    for p in process:
-                        # ask the processes to stop when all files are handled
-                        # "STOP" is at the very end of queue
-                        todoqueue.put("STOP")
-                    for p in process:
-                        p.start()
-                    for p in process:
-                        p.join()
-                except KeyboardInterrupt:
-                    print("Shutting processes down")
-                   # Optionally try to gracefully shut down the worker processes here.
-                    p.terminate()
+            os.remove(os.path.join(outputfolder, name))
+            try:
+                process = [Process(target=make_consensus, args=(todoqueue, 
+                        outputfolder, consensus_tempfile, group_filename,)) for x in range(nprocesses)]
+                for p in process:
+                    # ask the processes to stop when all files are handled
+                    # "STOP" is at the very end of queue
+                    todoqueue.put("STOP")
+                for p in process:
+                    p.start()
+                for p in process:
                     p.join()
+            except KeyboardInterrupt:
+                print("Shutting processes down")
+               # Optionally try to gracefully shut down the worker processes here.
+                p.terminate()
+                p.join()
 #==============================================================================
 def comp_consensus_groups(grouplist): # compare consensuses with each other
     global comparelist
@@ -2127,3 +2127,9 @@ if __name__ == '__main__':
                 continue
     except KeyboardInterrupt:
         sys.exit()
+"""
+2024-10-13
+changed the order of the multiprocessing (start consumer first)
+2024-10-14
+sometimes os.remove() was in an open file
+"""
