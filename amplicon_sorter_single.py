@@ -37,7 +37,7 @@ version = '2024-10-16'  # version of the script
 def check_version(version):
     try:   
         link = urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
-                               'amplicon_sorter/master/amplicon_sorter.py').read()
+                                      'amplicon_sorter/refs/heads/master/amplicon_sorter_single.py').read()
         # find the version-date part of the last version on the webpage
         datepart = re.compile(r'(version.*?)(\d{4}-\d{2}-\d{2})(.*version of the script)')
         x = datepart.search(str(link))
@@ -45,18 +45,18 @@ def check_version(version):
         latest_version = x.group(2)
         # compare the date of this version with the version on the webpage
         if version < latest_version:
-            version_name = 'amplicon_sorter_' + latest_version + '.py' 
+            version_name = 'amplicon_sorter_single_' + latest_version + '.py' 
             # download latest version
             urllib.request.urlopen('https://raw.githubusercontent.com/avierstr/'
-                                   'amplicon_sorter/master/amplicon_sorter.py')
-            urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr'
-                                       '/amplicon_sorter/master/amplicon_sorter.py',
+                                   'amplicon_sorter/refs/heads/master/amplicon_sorter_single.py')
+            urllib.request.urlretrieve('https://raw.githubusercontent.com/avierstr/'
+                                       'amplicon_sorter/refs/heads/master/amplicon_sorter_single.py',
                                        version_name)
             print('\n =====================================================\n'
-                  '| NEW VERSION OF AMPLICON_SORTER AVAILABLE            |\n'
+                  '| NEW VERSION OF AMPLICON_SORTER_SINGLE AVAILABLE     |\n'
                   '| https://github.com/avierstr/amplicon_sorter         |\n'
                   '| Downloaded latest version as:                       |\n' 
-                  '|      ' + version_name + '                  |\n'
+                  '|      ' + version_name + '           |\n'
                   '| Press ctrl-c to exit                                |\n'
                   ' =====================================================\n')
             t = 10
