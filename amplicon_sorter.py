@@ -33,7 +33,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2024-10-16'  # version of the script
+version = '2025-03-10'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -756,7 +756,10 @@ def process_list(self, tempfile): # make files to do comparisons
     c.start()        
     Thread(target = queuer).start()
     time.sleep(5)
-    if tl == -1:
+    if tl == -1: 
+        for i in range(nprocesses): # put 'STOP' at the end of the queue 
+                                    # for every process
+            todoqueue.put("STOP")   
         raise Exception # go to the next file
     Thread(target = feeder).start()
     c.join() # wait until c has finished its work
@@ -2092,7 +2095,7 @@ if __name__ == '__main__':
                 if ssg == 'Estimate':
                     args.similar_species_groups = 'Estimate'
                 infolder, infile = os.path.split(os.path.realpath(infolder_file))
-                print(infile)
+                # print(infile)
                 tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
                                                                             '_compare.tmp')
                 saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
@@ -2127,9 +2130,3 @@ if __name__ == '__main__':
                 continue
     except KeyboardInterrupt:
         sys.exit()
-"""
-2024-10-13
-changed the order of the multiprocessing (start consumer first)
-2024-10-14
-sometimes os.remove() was in an open file
-"""
