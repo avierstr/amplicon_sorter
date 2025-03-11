@@ -32,7 +32,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2024-10-16'  # version of the script
+version = '2025-03-10'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -738,6 +738,7 @@ def process_list(self, tempfile): # make files to do comparisons
     Thread(target = queuer).start()
     time.sleep(5)
     if tl == -1:
+        todoqueue.put("STOP")   
         raise Exception # go to the next file
     Thread(target = feeder).start()
     c.join() # wait until c has finished its work
