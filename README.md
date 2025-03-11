@@ -6,8 +6,8 @@ The limit for separating closely related species within a sample is currently ar
 For more detailed explanation, please read [Amplicon_sorter_manual.pdf](https://github.com/avierstr/amplicon_sorter/blob/master/Amplicon_sorter_manual.pdf).
 
 **2 versions:** 
-- Linux, Unix and Mac without M1 processor: "amplicons_sorter.py" (multiprocessing version).  
-- Windows, Mac with M1 processor: "amplicons_sorter_single.py" (single core processing version). 
+- Linux, Unix and Mac without M1 processor: "amplicon_sorter.py" (multiprocessing version).  
+- Windows, Mac with M1 processor: "amplicon_sorter_single.py" (single core processing version). 
 
 **Requirements:**
 
@@ -133,6 +133,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 ### Release notes:
+
+2025/03/10:
+
+- Fixed hang when it had 'no reads to compare'.
 
 2024/10/16:
 
