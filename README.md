@@ -136,7 +136,7 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 2025/03/15:
 
-- Fixed bug that when the option '-aln --alignment' was used, when a group contained subgroups, it was only saving the alignment of the last subgroup. (noticed by Beilin)
+- Fixed bug that when the option `-aln --alignment` was used, when a group contained subgroups, it was only saving the alignment of the last subgroup. (noticed by Beilin)
 
 2025/03/10:
 
