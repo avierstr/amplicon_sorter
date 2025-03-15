@@ -33,7 +33,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-03-10'  # version of the script
+version = '2025-03-15'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -1092,14 +1092,14 @@ def make_consensus(todoqueue, outputfolder, consensus_tempfile, infile):
             templist.append([i, consensus])
             if aln is True: # option to write alignment to file 
             
-                try:  # remove temporary alignment files if exists
-                    filename = os.path.join(outputfolder, infile).replace('.group', '*_alignment.fasta')
-                    for x in glob.glob(os.path.join(outputfolder,filename)):
-                        os.remove(x)      
+                # try:  # remove temporary alignment files if exists
+                #     filename = os.path.join(outputfolder, infile).replace('.group', str(i) + '_alignment.fasta')
+                #     for x in glob.glob(os.path.join(outputfolder,filename)):
+                #         os.remove(x)      
               
-                    time.sleep(1)
-                except FileNotFoundError:
-                    pass
+                #     time.sleep(1)
+                # except FileNotFoundError:
+                #     pass
             
                 if infile != '_':
                     outfile = os.path.join(outputfolder, infile).replace(
