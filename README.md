@@ -134,6 +134,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 ### Release notes:
 
+2025/05/24:
+
+- Temporary files were written in the input folder.  Changed this to the output folder when users use the `-o, --outputfolder` option.  This fixes an issue when users do not have write permission to the input folder.  
+
 2025/03/15:
 
 - Fixed bug that when the option `-aln --alignment` was used, when a group contained subgroups, it was only saving the alignment of the last subgroup. (noticed by Beilin)
@@ -290,4 +294,5 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 > Written with [StackEdit](https://stackedit.io/).
+
 
