@@ -32,7 +32,7 @@ from itertools import zip_longest
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-03-15'  # version of the script
+version = '2025-05-24'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -745,8 +745,9 @@ def process_list(self, tempfile): # make files to do comparisons
 #==============================================================================
 def similarity(todoqueue, tempfile): # process files for similarity 
     global progress, len_todolist
+    outputfolder = args.outputfolder
     try:  # remove temporary file if exists
-        os.remove(tempfile)
+        os.remove(os.path.join(outputfolder, tempfile))
     except FileNotFoundError:
         pass
     similarg = args.similar_genes/100
@@ -765,18 +766,19 @@ def similarity(todoqueue, tempfile): # process files for similarity
                                          str(iden) + ':' + 'reverse'))
             except KeyboardInterrupt:
                 print("Shutting process down")
-        with open(tempfile, 'a') as f:
+        with open(os.path.join(outputfolder, tempfile), 'a') as f:
             for c in templist:
                 f.write(c +'\n')
         templist =[]
 #==============================================================================
 def SSG(tempfile):  #calculate the N6
     # comparable with the N50 in sequence assembly, here used to estimate ssg value
+    outputfolder = args.outputfolder
     print('Estimating the ssg value for this dataset')
     t = 0
     totalsimil = 0
     tempdict = {}
-    with open(tempfile, 'r') as tf:
+    with open(os.path.join(outputfolder, tempfile), 'r') as tf:
         for line in tf:
             simil = float(line.strip().split(':')[2])
             if simil in tempdict: # if that simil value already exists in dict
@@ -946,7 +948,7 @@ def update_list(tempfile): # create gene-groups from compared sequences
     tempdict = {}
     t = 0 # items done
     try:
-        with open(tempfile, 'r') as tf:
+        with open(os.path.join(outputfolder, tempfile), 'r') as tf:
             for line in tf:
                 e = line.strip().split(':')[:3]
                 a = e[1]
@@ -1276,7 +1278,7 @@ def read_indexes(group_filename): # read index numbers from the the group file
         tempdict = {}
         t = 0 # items done
         try:
-            with open(tempfile, 'r') as tf:
+            with open(os.path.join(outputfolder, tempfile), 'r') as tf:
                 for line in tf:
                     e = line.strip().split(':')
                     a = e[1]
@@ -1902,13 +1904,13 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
         read_file(infile)
     else:
         read_file(infile)
-        process_list(comparelist2, tempfile) 
+        process_list(comparelist2, os.path.join(outputfolder, tempfile)) 
         comparelist2 = list(set(([tuple(x) for sublist in comparelist2 for x in 
                                   sublist]))) # make list out of list with sublists
         comparelist2 = [list(x) for x in comparelist2]
         comparelist2.sort(key=lambda x: x[3])
         
-        with open(saved_comparelist, 'wb') as wf:
+        with open(os.path.join(outputfolder, saved_comparelist), 'wb') as wf:
             pickle.dump(comparelist, wf)
             pickle.dump(comparelist2, wf)
     # write number of used reads in result file
@@ -1933,7 +1935,7 @@ def sort_groups(): # read the gene groups and sort sequences to species level
     global comparelist, comparelist2, resultlist, num_seq, saved_comparelist
     outputfolder = args.outputfolder
     try:
-        with open(saved_comparelist, 'rb') as rf:
+        with open(os.path.join(outputfolder, saved_comparelist), 'rb') as rf:
             comparelist = pickle.load(rf)
             comparelist2 = pickle.load(rf)
         num_seq = len(comparelist2)
@@ -1947,7 +1949,7 @@ def sort_groups(): # read the gene groups and sort sequences to species level
     except FileNotFoundError:
         pass   
     
-    grouplist = update_list(tempfile)
+    grouplist = update_list(os.path.join(outputfolder, tempfile))
     #------------------------------------
     # find numbers of sequences that are not in groups and save in separate file
     groupedseq = [int(x) for sublist in grouplist for x in sublist] # make flat list of numbers
@@ -2009,7 +2011,7 @@ if __name__ == '__main__':
                 if ssg == 'Estimate':
                     args.similar_species_groups = 'Estimate'
                 infolder, infile = os.path.split(os.path.realpath(infolder_file))
-                print(infile)
+                # print(infile)
                 tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
                                                                             '_compare.tmp')
                 saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
@@ -2038,8 +2040,9 @@ if __name__ == '__main__':
                         rc.write(' \n')
                 sort_genes()
                 sort_groups()
-                os.remove(tempfile)
-                os.remove(saved_comparelist)
+                outputfolder = args.outputfolder
+                os.remove(os.path.join(outputfolder, tempfile))
+                os.remove(os.path.join(outputfolder, saved_comparelist))
             except Exception: 
                 continue
     except KeyboardInterrupt:
