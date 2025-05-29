@@ -28,9 +28,11 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 ### Options:
 
-`-i, --input`: Input **file** in fastq or fasta format.  Also a **folder** can be given as input and will be scanned for .fasta or .fastq files to process.  Make sure the input file(s) is (are) named as .fasta or .fastq because it replaces the extension in parts of the script.
+`-i, --input`: Input **file** in fastq, fasta or compressed .gz format (auto detect the format).  Also a **folder** can be given as input and will be scanned for .fasta, .fastq or .gz files to process.  Make sure the input file(s) is (are) named as *.fasta, *.fastq, *.fasta.gz or *.fastq.gz because it replaces the extension in parts of the script.
 
 `-o, --outputfolder`: Save the results in the specified outputfolder. Default = same folder as the inputfile in a subfolder with the name of the input file.
+
+`-c, --compressed`: Save the output files in compressed *.gz format.  (a few files (consensus file, result file and .csv file will not be compressed)
 
 `-min, --minlength`: Minimum readlenght to process. Default=300
 
@@ -133,6 +135,11 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 ### Release notes:
+
+2025/05/28:
+
+- The program can now read *.gz compressed files as input files (Automatically detected).  
+- The option `-c, --compressed` has been added to store the output files in compressed .gz format.  
 
 2025/05/24:
 
