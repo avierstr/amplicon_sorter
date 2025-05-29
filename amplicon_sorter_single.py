@@ -29,10 +29,11 @@ import argparse
 import urllib.request
 import re
 from itertools import zip_longest
+import gzip
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-05-24'  # version of the script
+version = '2025-05-28'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -98,19 +99,20 @@ def get_arguments():
         if os.path.isfile(param): # if input is file
             # check if input file ends on .fastq or .fasta
             base, ext = os.path.splitext(param)
-            if ext.lower() not in ('.fasta', '.fastq'): 
-                raise argparse.ArgumentTypeError('File extension must be .fastq or .fasta') 
+            if ext.lower() not in ('.fasta', '.fastq', '.gz'): 
+                raise argparse.ArgumentTypeError('File extension must be .fastq, .fasta or .gz') 
             paramlist.append(param)
         elif os.path.isdir(param): # if input is folder 
             with os.scandir(param) as iterator:
                 for file in iterator:
-                    if file.name.lower().endswith('.fastq') or file.name.lower().endswith('.fasta'):
+                    if file.name.lower().endswith('.fastq') or file.name.lower().endswith('.fasta') \
+                        or file.name.lower().endswith('.gz'):
                         paramlist.append(file.path)
             paramlist.sort()
             if len(paramlist) == 0:
-                sys.exit('Can not find files in folder to process.  File extension must be .fastq or .fasta')
+                sys.exit('Can not find files in folder to process.  File extension must be .fastq or .fasta or .gz')
         else:
-            sys.exit('Can not find a file or folder to process.  File extension must be .fastq or .fasta')
+            sys.exit('Can not find a file or folder to process.  File extension must be .fastq or .fasta or .gz')
         param = paramlist
         return param
 
@@ -124,7 +126,7 @@ def get_arguments():
                                      based on identity and saves them in different\
                                     files including the consensus. Single core version' )
     parser.add_argument('-i', '--input', required=True, type = valid_file,
-                        help='Input folder or file in fastq or fasta format')
+                        help='Input folder or file in fastq, fasta or .gz format')
     parser.add_argument('-min', '--minlength', type = int, required=False, default=300,
                         help='Minimum readlenght to process.  Default=300')
     parser.add_argument('-max', '--maxlength', type = int, required=False, 
@@ -159,6 +161,9 @@ def get_arguments():
     parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
                         help='Save the results also in fastq files (fastq files\
                             will not contain the consensus sequence)')
+    parser.add_argument('-c', '--compress', action = 'store_true',
+                        help='Compress the fasta and fastq files with gz, \
+                            not the consensus files')
     parser.add_argument('-ra', '--random', action = 'store_true',
                         help='Takes random reads from the inputfile.')
     parser.add_argument('-a', '--all', action = 'store_true',
@@ -201,6 +206,7 @@ def save_arguments(): # save all settings in the result.txt file
         rf.write('- similar_consensus = ' + str(args.similar_consensus) + '\n')
         rf.write('- length_difference_consensus = ' + str(args.length_diff_consensus) + '\n')
         rf.write('- save_fastq = ' + str(args.save_fastq) + '\n')
+        rf.write('- compressed = ' + str(args.compressed) + '\n')
         rf.write('- random = ' + str(args.random) + '\n')
         rf.write('- compare_all = ' + str(args.all) + '\n')
         rf.write('- alignment = ' + str(args.alignment) + '\n')
@@ -456,7 +462,7 @@ def figure(readlengthlist, total_num_seq):
     ax = plt.subplot(2,1,1)
     outputfolder = args.outputfolder
     figname = infile.replace('.fastq', '_total_outputfig.pdf').replace('.fasta',
-        '_total_outputfig.pdf')
+        '_total_outputfig.pdf').replace('.gz', '')
     plt.ylabel('Number of reads')
     plt.title('Read length histogram') 
     plt.text(0.95, 0.55, 'Total yield (Gb): ' + str(round((bases/1000000000),2)) + 
@@ -503,7 +509,13 @@ def figure(readlengthlist, total_num_seq):
     print('Saved "' + figname + '" as a Read Length Histogram.')
 #==============================================================================
 def read_file(self): # read the inputfile
-    with open(os.path.join(infolder,infile), 'r') as inf: # check the fileformat
+    # check if it is a gzip file or not, changes the open function
+    if infile.endswith('.gz'):
+        open_func = gzip.open
+    else:  # fasta or fastq
+        open_func = open
+          
+    with open_func(os.path.join(infolder,infile), 'rt') as inf: # check the fileformat
         line = inf.readline()
         if line[0] == '>':
             fileformat = 'fasta'
@@ -521,7 +533,7 @@ def read_file(self): # read the inputfile
     readlengthlist = []
     ti = 0  # total number of reads in the file
     print('Reading ' + self)
-    inputfile = open(os.path.join(infolder,infile), "r")
+    inputfile = open_func(os.path.join(infolder,infile), 'rt')
     for record in SeqIO.parse(inputfile, fileformat):
         ti += 1
         readlengthlist.append(len(record.seq)) # for figure
@@ -628,7 +640,6 @@ def read_file(self): # read the inputfile
 def process_list(self, tempfile): # make files to do comparisons
     global comparelist2, len_todolist
     # compare 1 with 2,3,4,5,...; compare 2 with 3,4,5,... compare 3 with 4,5,...
-    # chunk = 1000000  # split size of the chunks to feed the multiprocessing queue
     chunk = 1000000
     len_todolist = 0  
     todoqueue = Queue(maxsize = 2) # max number in queue
@@ -1008,7 +1019,7 @@ def update_list(tempfile): # create gene-groups from compared sequences
         
     for j, x in enumerate(grouplist):
         outputfile = os.path.join(outputfolder, infile.replace('.fastq', '_').
-                                  replace('.fasta', '_') + str(j) + '.group')
+                                  replace('.fasta', '_').replace('.gz', '') + str(j) + '.group')
         with open(outputfile, 'a') as outputf:
             for y in x:
                 outputf.write(str(y) + '\n')
@@ -1053,6 +1064,7 @@ def merge_groups(grouplist):
 def make_consensus(todolist, outputfolder, consensus_tempfile, infile):
     global comparelist
     aln = args.alignment
+    compressed = args.compressed
     templist = []
     for i, x in todolist:
         consensuslist = []
@@ -1064,8 +1076,11 @@ def make_consensus(todolist, outputfolder, consensus_tempfile, infile):
         consensuslist2 = consensus_direction(consensuslist) 
         consensus, alignlist = create_consensus(consensuslist2, infile)  # create consensus sequence
         templist.append([i, consensus])
-        if aln is True: # option to write alignment to file 
-        
+        if aln is True: # option to write alignment to file
+            if compressed is True: # output files compressed or not
+                open_func = gzip.open
+            else:  # fasta or fastq
+                open_func = open
             # try:  # remove temporary alignment files if exists
             #     filename = os.path.join(outputfolder, infile).replace('.group', '*_alignment.fasta')
             #     for x in glob.glob(os.path.join(outputfolder,filename)):
@@ -1074,12 +1089,15 @@ def make_consensus(todolist, outputfolder, consensus_tempfile, infile):
             #     time.sleep(1)
             # except FileNotFoundError:
             #     pass
-        
+
             if infile != '_':
                 outfile = os.path.join(outputfolder, infile).replace(
                     '.group', '_') + str(i) + '_alignment.fasta'
-                with open(outfile, 'w') as alignm:
-                    # alignm.write(consensus + '\n')
+                if compressed is True:
+                    outfile = outfile + '.gz'
+
+                with open_func(outfile, 'wt') as alignm:
+                # alignm.write(consensus + '\n')
                     for i, x in enumerate(alignlist):
                         if i == 0:
                             i = 'consensus'
@@ -1125,7 +1143,7 @@ def comp_consensus_groups(grouplist): # compare consensuses with each other
     global comparelist
     comparelist.sort(key=lambda x: x[3]) # sort list based on index number
                                          # must be done for option '-all' sequences !
-    outputfolder = args.outputfolder        
+    outputfolder = args.outputfolder  
     length_diff_c = args.length_diff_consensus/100 + 1 # length difference allowed for 
                                                 # consensus                     
     consensus_tempfile = os.path.join(outputfolder, 'consensus.tmp')
@@ -1379,13 +1397,23 @@ def read_indexes(group_filename): # read index numbers from the the group file
 def filter_seq(group_filename, grouplist, indexes):
     # filter sequences: put the sequences with high similarity in separate files.
     # Sequences of the same species with the same gene should be in one file.
-    with open(os.path.join(infolder, infile), 'r') as inf: # check the fileformat
+    if infile.endswith('.gz'): # check if gzip or not
+        open_func = gzip.open
+    else:  # fasta or fastq
+        open_func = open
+    with open_func(os.path.join(infolder, infile), 'rt') as inf: # check the fileformat
         line = inf.readline()
         if line[0] == '>':
             fileformat = 'fasta'
         elif line[0] == '@':
             fileformat = 'fastq'
     outputfolder = args.outputfolder    
+    compressed = args.compressed
+    
+    if compressed is True: # output files compressed or not
+        open_func = gzip.open
+    else:  # fasta or fastq
+        open_func = open
     if fileformat == 'fasta': # if the inputfile was fasta, it is not possible to 
         fq = False            # save results in fastq format
     else:
@@ -1395,7 +1423,21 @@ def filter_seq(group_filename, grouplist, indexes):
     if fq == True:
         # index the input fastq file
         try:
-            record_dict = SeqIO.index(os.path.join(infolder, infile), 'fastq')
+            if infile.endswith('.gz'): # is it is a gz file, SeqIO.index can not read it, decompress first
+                decompressfile = infile.replace('.gz', '')
+                try:
+                    record_dict = SeqIO.index(os.path.join(outputfolder, decompressfile), 'fastq')
+                except FileNotFoundError:
+                    with gzip.open(os.path.join(infolder, infile), 'rt') as zf:
+                        with open(os.path.join(outputfolder, decompressfile), 'wt') as of: 
+                            d = zf.read(1024)
+                            while d:
+                                of.write(d)
+                                d = zf.read(1024)
+                    record_dict = SeqIO.index(os.path.join(outputfolder, decompressfile), 'fastq')
+                # os.remove(os.path.join(outputfolder, decompressfile))
+            else:
+                record_dict = SeqIO.index(os.path.join(infolder, infile), 'fastq')
         except ValueError as e:
             print(e)
     for rec_id, seq, scores, index in comparelist2:
@@ -1410,11 +1452,14 @@ def filter_seq(group_filename, grouplist, indexes):
                      '.group', '_') + str(scores) + '.fasta'
                  outputfilefq = os.path.join(outputfolder,group_filename).replace(
                      '.group', '_') + str(scores) + '.fastq'
-            with open(outputfile, 'a') as outputf:
+            if compressed is True:
+                outputfile = outputfile + '.gz'
+                outputfilefq = outputfilefq + '.gz'
+            with open_func(outputfile, 'at') as outputf:
                 x = str(seq)
                 outputf.write('>' + str(index)  + '\n' + x + '\n')
                 if fq == True:
-                    with open(outputfilefq, 'a') as writer: 
+                    with open_func(outputfilefq, 'at') as writer: 
                         SeqIO.write(record_dict[rec_id], writer, 'fastq')
     grouped_seq = 0 # number of sequences in grouplist  
     for x in grouplist:
@@ -1426,22 +1471,24 @@ def filter_seq(group_filename, grouplist, indexes):
     #     '.group', '_consensussequences.fasta') # group consensusfile
     # total consensusfile
     consensusfile = os.path.join(outputfolder, infile).replace('.fasta', 
-    '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta')
+    '_consensussequences.fasta').replace('.fastq', '_consensussequences.fasta').replace('.gz', '')
     
     # try:  # remove  file if exists
     #     os.remove(os.path.join(outputfolder, consensusfilename))
     # except FileNotFoundError:
     #     pass 
-    
+
     for j, x in enumerate(grouplist):
         outputfile = os.path.join(outputfolder, group_filename).replace(
             '.group', '_') + str(j) + '.fasta'
+        if compressed is True:
+            outputfile = outputfile + '.gz'
         consensusname = group_filename.replace('.group', '_') + str(j) 
         
         t = 0
         for y in set(x):
             if y.isalpha(): # if it is a sequence
-                with open(outputfile, 'a') as outputf:
+                with open_func(outputfile, 'at') as outputf:
                     outputf.write('>consensus' + '\n' + y + '\n')
                 # with open(consensusfilename, 'a') as outputf:
                 #     outputf.write('>consensus_' + str(consensusname) + '(' +
@@ -1491,11 +1538,17 @@ def filter_seq(group_filename, grouplist, indexes):
         pass
     try:  # remove temporary alignment files for unique files if exists
         for dirpath, dirnames, filenames in os.walk(outputfolder):
-            for name in filenames:
-                if name.endswith('_alignment.fasta'):
-                    partname = name.replace('_alignment.fasta', '.fasta')
-                    if partname not in filenames:
-                        os.remove(os.path.join(outputfolder, name))
+           for name in filenames:
+               if compressed is True:
+                   end = '_alignment.fasta.gz'
+                   b, a = '_alignment.fasta.gz', '.fasta.gz' # before, after
+               else:
+                   end = '_alignment.fasta'
+                   b, a = '_alignment.fasta', '.fasta'
+               if name.endswith(end):
+                   partname = name.replace(b, a)
+                   if partname not in filenames:
+                       os.remove(os.path.join(outputfolder, name))
         time.sleep(1)
     except FileNotFoundError:
         pass
@@ -1892,7 +1945,7 @@ def sort_genes(): # read the input file and sort sequences according to gene gro
     global saved_comparelist, comparelist2
     outputfolder = args.outputfolder
     try:
-        filename = infile.replace('.fastq', '_*').replace('.fasta', '_*')
+        filename = infile.replace('.fastq', '_*').replace('.fasta', '_*').replace('.gz', '')
         for x in glob.glob(os.path.join(outputfolder, filename)):
             if not x.endswith(".pdf"): # don't remove readlength histogram
                 os.remove(x)
@@ -1943,7 +1996,7 @@ def sort_groups(): # read the gene groups and sort sequences to species level
         pass 
     
     consensusfile = infile.replace('.fasta', '_consensussequences.fasta').replace(
-        '.fastq', '_consensussequences.fasta') # total consensusfile
+        '.fastq', '_consensussequences.fasta').replace('.gz', '') # total consensusfile
     try:  # remove  file if exists
         os.remove(os.path.join(outputfolder, consensusfile))
     except FileNotFoundError:
@@ -1957,7 +2010,7 @@ def sort_groups(): # read the gene groups and sort sequences to species level
     unique = set(comparedseq).difference(set(groupedseq))
     if len(unique) > 0:
         outputfile = os.path.join(outputfolder, infile.replace('.fastq', '_').
-                                  replace('.fasta', '_') + 'nogroup.group')
+                                  replace('.fasta', '_').replace('.gz', '') + 'nogroup.group')
         with open(outputfile, 'a') as outputf:
             for y in unique:
                 outputf.write(str(y) + '\n')
@@ -2011,12 +2064,11 @@ if __name__ == '__main__':
                 if ssg == 'Estimate':
                     args.similar_species_groups = 'Estimate'
                 infolder, infile = os.path.split(os.path.realpath(infolder_file))
-                # print(infile)
                 tempfile = infile.replace('.fastq', '_compare.tmp').replace('.fasta', 
-                                                                            '_compare.tmp')
+                                                        '_compare.tmp').replace('.gz', '')
                 saved_comparelist = infile.replace('.fastq', '_comparelist.pickle').replace(
-                    '.fasta', '_comparelist.pickle')
-                outfolder, ext = os.path.splitext(infile)
+                    '.fasta', '_comparelist.pickle').replace('.gz', '')
+                outfolder, ext = os.path.splitext(infile.replace('.gz', ''))
                 if init_outputfolder:
                     if outfolder not in init_outputfolder:
                         try:
@@ -2043,6 +2095,9 @@ if __name__ == '__main__':
                 outputfolder = args.outputfolder
                 os.remove(os.path.join(outputfolder, tempfile))
                 os.remove(os.path.join(outputfolder, saved_comparelist))
+                if infile.endswith('.gz') and args.save_fastq is True: # remove decompressed file from indexing
+                    decompressfile = infile.replace('.gz', '')
+                    os.remove(os.path.join(outputfolder, decompressfile))
             except Exception: 
                 continue
     except KeyboardInterrupt:
