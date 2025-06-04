@@ -33,7 +33,7 @@ import gzip
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-05-28'  # version of the script
+version = '2025-06-04'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -161,7 +161,7 @@ def get_arguments():
     parser.add_argument('-sfq', '--save_fastq', action = 'store_true',
                         help='Save the results also in fastq files (fastq files\
                             will not contain the consensus sequence)')
-    parser.add_argument('-c', '--compress', action = 'store_true',
+    parser.add_argument('-c', '--compressed', action = 'store_true',
                         help='Compress the fasta and fastq files with gz, \
                             not the consensus files')
     parser.add_argument('-ra', '--random', action = 'store_true',
