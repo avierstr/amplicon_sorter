@@ -33,7 +33,7 @@ import gzip
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-06-04'  # version of the script
+version = '2025-10-09'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -179,7 +179,8 @@ def get_arguments():
                             outputfolder. Default = input folder')
     parser.add_argument('-ho', '--histogram_only', action = 'store_true',
                         help='Only creates a read length histogram.')
-
+    parser.add_argument('-v', '--version', action="version", version=version,
+                        help="Show program's version and exit")
     args = parser.parse_args()
     return args
 #==============================================================================
