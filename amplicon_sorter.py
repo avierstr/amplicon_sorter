@@ -34,7 +34,7 @@ import gzip
 
 global tempfile, infile, num_seq, saved_comparelist, comparelist 
 
-version = '2025-05-28'  # version of the script
+version = '2025-10-09'  # version of the script
 #==============================================================================
 def check_version(version):
     try:   
@@ -185,7 +185,8 @@ def get_arguments():
     parser.add_argument('-mac', '--macOS', action = 'store_true',
                         help='Option to try when amplicon_sorter crashes on \
                             Mac with M1 processor.')
-
+    parser.add_argument('-v', '--version', action="version", version=version,
+                        help="Show program's version and exit")
     args = parser.parse_args()
     return args
 #==============================================================================
