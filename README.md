@@ -70,6 +70,7 @@ amplicon sequencing, MinION, Oxford Nanopore Technologies, consensus, reference 
 
 `-mac, --macOS`: Option to try if amplicon_sorter crashes on Mac with a M1 processor (I did not get confirmation from users if this works or not).
 
+`-v, --version`: Print the version and exit.
 
 ### How it works (in short):
 
@@ -135,6 +136,10 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 ### Release notes:
+
+2025/10/09:
+
+- The option `-v, --version` has been added.  
 
 2025/05/28:
 
@@ -301,5 +306,6 @@ If you are working with species that are more than 95 – 96% similar, it is imp
 
 
 > Written with [StackEdit](https://stackedit.io/).
+
 
 
